@@ -9,6 +9,7 @@ export interface ProcessTaskOpts {
   cmd: string[];
   logDir: string;
   idleTimeoutMs?: number;  // default 5 min
+  tags?: string[];         // optional tags for grouping
 }
 
 export class ProcessTask extends EventEmitter {
@@ -29,6 +30,7 @@ export class ProcessTask extends EventEmitter {
       startedAt: Date.now(),
       status: 'running',
       logFile,
+      tags: opts.tags,
     };
 
     // open log file early so we can pipe right away

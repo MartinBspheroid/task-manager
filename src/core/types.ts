@@ -10,4 +10,5 @@ export interface TaskInfo {
   status: TaskStatus;
   exitCode?: number | null;
   logFile: string;
+  tags?: string[];     // optional tags for grouping
 }
