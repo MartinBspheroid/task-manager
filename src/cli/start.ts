@@ -5,9 +5,10 @@ const manager = new ProcessManager();
 // Parse command line arguments
 const args = process.argv.slice(2);
 let tags: string[] = [];
+let immediate = false;
 let cmd: string[] = [];
 
-// Look for --tag arguments
+// Look for --tag and --immediate arguments
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--tag' && i + 1 < args.length) {
     const tagValue = args[i + 1];
@@ -20,6 +21,8 @@ for (let i = 0; i < args.length; i++) {
     if (tagValue) {
       tags.push(tagValue);
     }
+  } else if (args[i] === '--immediate') {
+    immediate = true;
   } else {
     cmd = args.slice(i);
     break;
@@ -27,7 +30,7 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (!cmd.length) {
-  console.error('Usage: taskman start [--tag tagname] -- <command> [args]');
+  console.error('Usage: taskman start [--tag tagname] [--immediate] -- <command> [args]');
   process.exit(1);
 }
 
@@ -35,6 +38,7 @@ mkdirSync('logs', { recursive: true });
 const info = manager.start({ 
   cmd, 
   logDir: 'logs',
-  tags: tags.length > 0 ? tags : undefined
+  tags: tags.length > 0 ? tags : undefined,
+  queue: immediate ? { immediate: true } : undefined
 });
 console.log('started', info);

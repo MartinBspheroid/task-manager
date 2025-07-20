@@ -178,6 +178,19 @@ export class ProcessManager extends EventEmitter {
     return { ...this.#globalHooks };
   }
   
+  /**
+   * Start a task immediately, bypassing any queue settings
+   * This is a convenience method that ensures immediate execution
+   */
+  startImmediate(opts: ProcessTaskOpts): TaskInfo {
+    // Force immediate execution by adding immediate flag
+    const immediateOpts: ProcessTaskOpts = {
+      ...opts,
+      queue: { ...opts.queue, immediate: true }
+    };
+    return this.start(immediateOpts);
+  }
+  
   // New async variant for queue-aware code
   async startAsync(opts: ProcessTaskOpts): Promise<TaskInfo> {
     const enhancedOpts = this.enhanceOptions(opts);
