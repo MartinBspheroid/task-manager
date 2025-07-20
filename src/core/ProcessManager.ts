@@ -1,12 +1,19 @@
 // src/core/ProcessManager.ts
 import { ProcessTask, type ProcessTaskOpts } from './ProcessTask';
-import type { TaskInfo } from './types';
+import type { TaskInfo, HookCallbacks } from './types';
+import { HookManager } from './HookManager';
 
 export class ProcessManager {
   #tasks = new Map<string, ProcessTask>();
+  #globalHooks: HookCallbacks = {};
+  #hookManager = new HookManager();
 
   start(opts: ProcessTaskOpts): TaskInfo {
-    const task = new ProcessTask(opts);
+    // Merge global hooks with task-specific hooks
+    const mergedHooks = this.#hookManager.mergeHooks(this.#globalHooks, opts.hooks);
+    const enhancedOpts = { ...opts, hooks: mergedHooks };
+    
+    const task = new ProcessTask(enhancedOpts);
     this.#tasks.set(task.info.id, task);
     // Keep tasks in the list even after they exit for status tracking
     return task.info;
@@ -54,5 +61,17 @@ export class ProcessManager {
       }
     }
     return killedIds;
+  }
+
+  registerGlobalHooks(hooks: HookCallbacks): void {
+    this.#globalHooks = this.#hookManager.mergeHooks(this.#globalHooks, hooks);
+  }
+
+  clearGlobalHooks(): void {
+    this.#globalHooks = {};
+  }
+
+  getGlobalHooks(): HookCallbacks {
+    return { ...this.#globalHooks };
   }
 }
