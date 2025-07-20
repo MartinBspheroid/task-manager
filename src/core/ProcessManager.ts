@@ -315,6 +315,16 @@ export class ProcessManager extends EventEmitter {
   
   clearQueue(): void {
     this.#queue.clear();
+    
+    // Update tracked tasks - remove queued tasks
+    for (const [id, task] of this.#tasks.entries()) {
+      if (task.info.status === 'queued') {
+        this.#tasks.delete(id);
+        // Emit cancelled event for each removed task
+        this.emit('task:cancelled', { taskId: id, taskInfo: task.info });
+        this.#totalCancelled++;
+      }
+    }
   }
   
   // Enhanced statistics tracking
