@@ -22,6 +22,7 @@ export class ProcessTask extends EventEmitter {
   #idleTimer?: NodeJS.Timeout;
   #hookManager: HookManager;
   #hooks: HookCallbacks;
+  #idleTimeoutMs?: number;
 
   constructor(opts: ProcessTaskOpts) {
     super();
@@ -30,24 +31,40 @@ export class ProcessTask extends EventEmitter {
     const logFile = `${opts.logDir}/${id}.log`;
     this.#hooks = opts.hooks || {};
     this.#hookManager = opts.hookManager || new HookManager();
+    this.#idleTimeoutMs = opts.idleTimeoutMs;
     
     this.info = {
       id,
       cmd: opts.cmd,
       pid: -1,
-      startedAt: Date.now(),
-      status: 'running',
+      startedAt: 0,
+      status: 'queued',
       logFile,
       tags: opts.tags,
     };
+  }
 
+  run(): void {
+    this.info.status = 'running';
+    this.info.startedAt = Date.now();
     try {
       // Initialize the process
-      this.#initializeProcess(opts);
+      this.#initializeProcess({
+        cmd: this.info.cmd,
+        logDir: this.info.logFile.replace(/\/[^/]+$/, ''),
+        hooks: this.#hooks,
+        hookManager: this.#hookManager,
+        tags: this.info.tags,
+        idleTimeoutMs: this.#getIdleTimeoutMs(),
+      });
     } catch (error) {
       // Handle startup failure
       this.#handleStartupFailure(error as Error);
     }
+  }
+
+  #getIdleTimeoutMs(): number | undefined {
+    return this.#idleTimeoutMs;
   }
 
   #initializeProcess(opts: ProcessTaskOpts): void {

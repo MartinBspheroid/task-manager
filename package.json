@@ -10,6 +10,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "chokidar": "^4.0.3"
+    "chokidar": "^4.0.3",
+    "p-queue": "^8.1.0"
   }
 }

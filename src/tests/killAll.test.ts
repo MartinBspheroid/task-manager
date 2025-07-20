@@ -26,6 +26,7 @@ test('killAll() terminates all running processes', async () => {
   });
   
   // Verify all tasks are running
+  await new Promise((r) => setTimeout(r, 50));
   const runningBefore = manager.listRunning();
   expect(runningBefore.length).toBe(3);
   
@@ -76,7 +77,7 @@ test('killAll() only kills running tasks, not exited ones', async () => {
   });
   
   // Wait for the quick task to exit
-  await new Promise((r) => setTimeout(r, 100));
+  await new Promise((r) => setTimeout(r, 150));
   
   // Kill all running tasks
   const killedIds = manager.killAll();

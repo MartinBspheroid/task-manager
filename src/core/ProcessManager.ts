@@ -1,10 +1,12 @@
 // src/core/ProcessManager.ts
 import { ProcessTask, type ProcessTaskOpts } from './ProcessTask';
+import { ProcessQueue } from './ProcessQueue';
 import type { TaskInfo, HookCallbacks } from './types';
 import { HookManager } from './HookManager';
 
 export class ProcessManager {
   #tasks = new Map<string, ProcessTask>();
+  #queue = new ProcessQueue();
   #globalHooks: HookCallbacks = {};
   #hookManager = new HookManager();
 
@@ -15,6 +17,10 @@ export class ProcessManager {
     
     const task = new ProcessTask(enhancedOpts);
     this.#tasks.set(task.info.id, task);
+
+    // Add the task to the queue
+    this.#queue.add(task);
+
     // Keep tasks in the list even after they exit for status tracking
     return task.info;
   }
