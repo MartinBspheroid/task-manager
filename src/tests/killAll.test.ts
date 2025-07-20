@@ -2,6 +2,7 @@
 import { ProcessManager } from '../core/ProcessManager';
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'fs';
+import { waitForRunningCount, waitForTaskCount } from './utils/test-helpers';
 
 test('killAll() terminates all running processes', async () => {
   // Ensure logs directory exists
@@ -38,8 +39,8 @@ test('killAll() terminates all running processes', async () => {
   expect(killedIds).toContain(task2.id);
   expect(killedIds).toContain(task3.id);
   
-  // Wait a moment for processes to be killed
-  await new Promise((r) => setTimeout(r, 100));
+  // Wait for processes to be killed
+  await waitForRunningCount(manager, 0);
   
   // Verify no tasks are running
   const runningAfter = manager.listRunning();
@@ -76,7 +77,9 @@ test('killAll() only kills running tasks, not exited ones', async () => {
   });
   
   // Wait for the quick task to exit
-  await new Promise((r) => setTimeout(r, 100));
+  await waitForTaskCount(manager, tasks => 
+    tasks.filter(t => t.status === 'exited').length === 1
+  );
   
   // Kill all running tasks
   const killedIds = manager.killAll();

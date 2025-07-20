@@ -2,6 +2,7 @@
 import { ProcessManager } from '../core/ProcessManager';
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'fs';
+import { waitForStatus } from './utils/test-helpers';
 
 test('onTimeout hook is called when task times out', async () => {
   mkdirSync('logs', { recursive: true });
@@ -22,8 +23,8 @@ test('onTimeout hook is called when task times out', async () => {
     }
   });
 
-  // Wait for timeout to trigger (1s timeout + buffer)
-  await new Promise((r) => setTimeout(r, 1500));
+  // Wait for timeout to trigger
+  await waitForStatus(manager, info.id, 'timeout', 2000);
 
   expect(hookCalled).toBe(true);
   expect(capturedTaskInfo).toBeTruthy();

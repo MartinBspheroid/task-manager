@@ -4,17 +4,17 @@
       "id": "001",
       "name": "revert-queue-implementation",
       "title": "Revert Queue Implementation",
-      "status": "in_progress",
+      "status": "completed",
       "phase": "stabilization",
       "description": "Revert the flawed queue implementation while preserving valuable insights",
       "dependencies": [],
-      "completedAt": null
+      "completedAt": "2025-01-20T18:30:00Z"
     },
     {
       "id": "002", 
       "name": "test-synchronization-utilities",
       "title": "Test Synchronization Utilities",
-      "status": "pending",
+      "status": "in_progress",
       "phase": "stabilization",
       "description": "Create proper test utilities for synchronizing with async operations",
       "dependencies": ["001"],
@@ -151,7 +151,7 @@
       "completedAt": null
     }
   ],
-  "currentTask": "001",
+  "currentTask": "002",
   "phases": {
     "stabilization": {
       "name": "Stabilization", 
