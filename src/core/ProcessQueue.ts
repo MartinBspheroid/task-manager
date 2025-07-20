@@ -3,19 +3,30 @@
 import { EventEmitter } from 'events';
 import type { QueueOptions, TaskQueueOptions } from './types';
 
+/** Task in queue with priority information */
+interface QueuedTask {
+  fn: () => Promise<any>;
+  resolve: (value: any) => void;
+  reject: (error: any) => void;
+  priority: number;
+  id?: string;
+  queuedAt: number;
+}
+
 /**
- * Simple queue implementation for concurrency control
- * This is a basic implementation that provides the core functionality
+ * Simple priority queue implementation for concurrency control
+ * This implementation provides priority-based task ordering
  * without depending on external p-queue library
  */
 class SimpleQueue {
-  private tasks: Array<{ fn: () => Promise<any>, resolve: (value: any) => void, reject: (error: any) => void }> = [];
+  private tasks: Array<QueuedTask> = [];
   private running = 0;
   private _concurrency: number;
   private _paused = false;
   private emptyWaiters: Array<() => void> = [];
   private idleWaiters: Array<() => void> = [];
   private sizeWaiters: Array<{ limit: number, resolve: () => void }> = [];
+  private taskMap = new Map<string, QueuedTask>(); // For setPriority functionality
   
   constructor(options: any = {}) {
     this._concurrency = options.concurrency ?? Infinity;
@@ -23,14 +34,40 @@ class SimpleQueue {
   
   async add<T>(fn: () => Promise<T> | T, options?: any): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      this.tasks.push({
+      const task: QueuedTask = {
         fn: async () => fn(),
         resolve,
-        reject
-      });
+        reject,
+        priority: options?.priority ?? 0,
+        id: options?.id,
+        queuedAt: Date.now()
+      };
+      
+      // Add to task map if ID provided
+      if (task.id) {
+        this.taskMap.set(task.id, task);
+      }
+      
+      // Insert task in priority order (higher priority first)
+      this.insertTaskByPriority(task);
       
       this.process();
     });
+  }
+  
+  private insertTaskByPriority(newTask: QueuedTask): void {
+    let insertIndex = this.tasks.length;
+    
+    // Find the correct insertion point (maintain descending priority order)
+    for (let i = 0; i < this.tasks.length; i++) {
+      const currentTask = this.tasks[i];
+      if (currentTask && newTask.priority > currentTask.priority) {
+        insertIndex = i;
+        break;
+      }
+    }
+    
+    this.tasks.splice(insertIndex, 0, newTask);
   }
   
   private async process(): Promise<void> {
@@ -40,6 +77,11 @@ class SimpleQueue {
     
     const task = this.tasks.shift();
     if (!task) return;
+    
+    // Remove from task map if it was tracked
+    if (task.id) {
+      this.taskMap.delete(task.id);
+    }
     
     this.running++;
     this.notifyWaiters(); // Notify when queue becomes empty
@@ -141,6 +183,45 @@ class SimpleQueue {
     return new Promise(resolve => {
       this.sizeWaiters.push({ limit, resolve });
     });
+  }
+  
+  /** Set priority for a queued task by ID */
+  setPriority(taskId: string, priority: number): boolean {
+    const task = this.taskMap.get(taskId);
+    if (!task) {
+      return false;
+    }
+    
+    // Remove task from current position
+    const index = this.tasks.findIndex(t => t.id === taskId);
+    if (index === -1) {
+      return false;
+    }
+    
+    this.tasks.splice(index, 1);
+    
+    // Update priority and reinsert
+    task.priority = priority;
+    this.insertTaskByPriority(task);
+    
+    return true;
+  }
+  
+  /** Get tasks sorted by priority (highest first) */
+  getTasksByPriority(): Array<{ id?: string, priority: number, queuedAt: number }> {
+    return this.tasks.map(task => ({
+      id: task.id,
+      priority: task.priority,
+      queuedAt: task.queuedAt
+    }));
+  }
+  
+  /** Get number of tasks with specific criteria */
+  sizeBy(options: { priority?: boolean }): any[] {
+    if (options.priority) {
+      return this.getTasksByPriority();
+    }
+    return [];
   }
 }
 
@@ -244,6 +325,25 @@ export class ProcessQueue extends EventEmitter {
   }
   
   /**
+   * Calculate effective priority including aging
+   */
+  private calculateEffectivePriority(options?: TaskQueueOptions): number {
+    const basePriority = options?.priority ?? 0;
+    
+    if (options?.aging?.enabled) {
+      const queuedAt = options.aging.queuedAt || Date.now();
+      const age = Date.now() - queuedAt;
+      const ageMinutes = age / (60 * 1000);
+      const agingBonus = ageMinutes * options.aging.increment;
+      const maxPriority = options.aging.maxPriority;
+      
+      return Math.min(basePriority + agingBonus, maxPriority);
+    }
+    
+    return basePriority;
+  }
+
+  /**
    * Add a task to the queue
    */
   async add<T>(
@@ -261,16 +361,32 @@ export class ProcessQueue extends EventEmitter {
       }
     }
     
-    // Queue execution
+    // Calculate effective priority for queue ordering
+    const effectivePriority = this.calculateEffectivePriority(options);
+    
+    // Set queuedAt timestamp for aging if not provided
+    if (options?.aging?.enabled && !options.aging.queuedAt) {
+      options.aging.queuedAt = Date.now();
+    }
+    
+    // Queue execution with priority
     if (this.#config.emitQueueEvents) {
       this.emit('task:added', { 
         size: this.size, 
-        pending: this.pending 
+        pending: this.pending,
+        priority: effectivePriority
       });
     }
     
     try {
-      const result = await this.#queue.add(fn);
+      // Pass priority to underlying queue implementation
+      const queueOptions = {
+        priority: effectivePriority,
+        id: options?.id,
+        signal: options?.signal
+      };
+      
+      const result = await this.#queue.add(fn, queueOptions);
       
       if (this.#config.emitQueueEvents) {
         this.emit('task:completed', {
@@ -438,15 +554,38 @@ export class ProcessQueue extends EventEmitter {
   }
   
   /**
-   * Set priority for a queued task (placeholder - basic implementation)
+   * Set priority for a queued task
    * Returns true if successful, false if task not found or already running
    */
-  setPriority(taskId: string, priority: number): void {
-    // For the SimpleQueue implementation, we don't have direct priority support
-    // This is a placeholder that could be enhanced with a proper priority queue
-    // For now, we just emit an event to indicate the attempt was made
-    if (this.#config.emitQueueEvents) {
+  setPriority(taskId: string, priority: number): boolean {
+    if (this.#isEffectivelyDisabled) {
+      return false; // Cannot set priority when queue is disabled
+    }
+    
+    const success = this.#queue.setPriority(taskId, priority);
+    
+    if (success && this.#config.emitQueueEvents) {
       this.emit('task:priority-updated', { taskId, priority });
     }
+    
+    return success;
+  }
+  
+  /**
+   * Get tasks sorted by priority (highest first)
+   */
+  getTasksByPriority(): Array<{ id?: string, priority: number, queuedAt: number }> {
+    if (this.#isEffectivelyDisabled) {
+      return []; // No queued tasks when disabled
+    }
+    
+    return this.#queue.getTasksByPriority();
+  }
+  
+  /**
+   * Calculate current effective priority for a task (including aging)
+   */
+  calculateCurrentPriority(options: TaskQueueOptions): number {
+    return this.calculateEffectivePriority(options);
   }
 }

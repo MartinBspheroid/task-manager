@@ -1,6 +1,6 @@
 // src/core/ProcessManager.ts
 import { ProcessTask, type ProcessTaskOpts } from './ProcessTask';
-import type { TaskInfo, HookCallbacks, ProcessManagerOptions, QueueStats, ExitResult, QueueHealth, ShutdownOptions, TaskPredicate } from './types';
+import type { TaskInfo, HookCallbacks, ProcessManagerOptions, QueueStats, ExitResult, QueueHealth, ShutdownOptions, TaskPredicate, TaskQueueOptions } from './types';
 import { HookManager } from './HookManager';
 import { ProcessQueue } from './ProcessQueue';
 import { TaskHandle } from './TaskHandle';
@@ -100,6 +100,19 @@ export class ProcessManager extends EventEmitter {
       
       const queueTime = Date.now();
       
+      // Prepare queue options with task ID for priority management
+      const queueId = opts.queue?.id || task.info.id;
+      const queueOptions = {
+        ...opts.queue,
+        id: queueId // Use provided ID or fall back to task ID
+      };
+      
+      // Store the queue ID in task metadata for priority management
+      if (!task.info.metadata) {
+        task.info.metadata = {};
+      }
+      task.info.metadata.queueId = queueId;
+
       this.#queue.add(
         async () => {
           // Actually start the process when queue allows it
@@ -128,7 +141,7 @@ export class ProcessManager extends EventEmitter {
           }
           return Promise.resolve();
         },
-        opts.queue
+        queueOptions
       ).catch(error => {
         // Handle queue errors
         task.info.status = 'start-failed';
@@ -244,6 +257,19 @@ export class ProcessManager extends EventEmitter {
       const task = new ProcessTask(delayedOpts);
       this.#tasks.set(task.info.id, task);
       
+      // Prepare queue options with task ID for priority management
+      const queueId = opts.queue?.id || task.info.id;
+      const queueOptions = {
+        ...opts.queue,
+        id: queueId // Use provided ID or fall back to task ID
+      };
+      
+      // Store the queue ID in task metadata for priority management
+      if (!task.info.metadata) {
+        task.info.metadata = {};
+      }
+      task.info.metadata.queueId = queueId;
+
       await this.#queue.add(
         async () => {
           if (task.info.status === 'queued') {
@@ -267,7 +293,7 @@ export class ProcessManager extends EventEmitter {
           }
           return Promise.resolve();
         },
-        opts.queue
+        queueOptions
       );
       
       return task.info;
@@ -504,6 +530,19 @@ export class ProcessManager extends EventEmitter {
       const task = new ProcessTask(delayedOpts);
       this.#tasks.set(task.info.id, task);
       
+      // Prepare queue options with task ID for priority management
+      const queueId = opts.queue?.id || task.info.id;
+      const queueOptions = {
+        ...opts.queue,
+        id: queueId // Use provided ID or fall back to task ID
+      };
+      
+      // Store the queue ID in task metadata for priority management
+      if (!task.info.metadata) {
+        task.info.metadata = {};
+      }
+      task.info.metadata.queueId = queueId;
+
       this.#queue.add(
         async () => {
           if (task.info.status === 'queued') {
@@ -527,7 +566,7 @@ export class ProcessManager extends EventEmitter {
           }
           return Promise.resolve();
         },
-        opts.queue
+        queueOptions
       ).catch(error => {
         // Handle queue errors
         task.info.status = 'start-failed';
@@ -552,6 +591,19 @@ export class ProcessManager extends EventEmitter {
       const task = new ProcessTask(delayedOpts);
       this.#tasks.set(task.info.id, task);
       
+      // Prepare queue options with task ID for priority management
+      const queueId = opts.queue?.id || task.info.id;
+      const queueOptions = {
+        ...opts.queue,
+        id: queueId // Use provided ID or fall back to task ID
+      };
+      
+      // Store the queue ID in task metadata for priority management
+      if (!task.info.metadata) {
+        task.info.metadata = {};
+      }
+      task.info.metadata.queueId = queueId;
+
       await this.#queue.add(
         async () => {
           if (task.info.status === 'queued') {
@@ -575,7 +627,7 @@ export class ProcessManager extends EventEmitter {
           }
           return Promise.resolve();
         },
-        opts.queue
+        queueOptions
       );
       
       return new TaskHandle(task, this);
@@ -622,17 +674,23 @@ export class ProcessManager extends EventEmitter {
     }
     
     // Update task metadata if it exists
-    if (task.info.metadata) {
-      task.info.metadata.priority = priority;
+    if (!task.info.metadata) {
+      task.info.metadata = {};
     }
+    task.info.metadata.priority = priority;
+    
+    // The queue ID might be different from the task ID if a custom ID was provided
+    // Try to get the queue ID from metadata, fall back to task ID
+    const queueId = task.info.metadata.queueId as string || taskId;
     
     // Try to update priority in queue via ProcessQueue
-    try {
-      this.#queue.setPriority(taskId, priority);
-      return true;
-    } catch {
-      return false;
+    const success = this.#queue.setPriority(queueId, priority);
+    
+    if (success && this.#queue.getStats().emitEvents) {
+      this.emit('task:priority-updated', { taskId, priority, taskInfo: task.info });
     }
+    
+    return success;
   }
   
   getQueuedTasks(): TaskInfo[] {
@@ -732,6 +790,35 @@ export class ProcessManager extends EventEmitter {
         this.kill(task.id, 'SIGKILL');
       }
     }
+  }
+
+  // Priority management methods for Task 011
+  
+  /**
+   * Get tasks sorted by priority (highest first)
+   */
+  getTasksByPriority(): Array<{ id?: string, priority: number, queuedAt: number }> {
+    return this.#queue.getTasksByPriority();
+  }
+  
+  /**
+   * Calculate current effective priority for given options (including aging)
+   */
+  calculateEffectivePriority(options: TaskQueueOptions): number {
+    return this.#queue.calculateCurrentPriority(options);
+  }
+  
+  /**
+   * Get priority statistics for the queue
+   */
+  getPriorityStats(): { highPriority: number, normal: number, lowPriority: number } {
+    const tasks = this.getTasksByPriority();
+    
+    return {
+      highPriority: tasks.filter(t => t.priority > 0).length,
+      normal: tasks.filter(t => t.priority === 0).length,
+      lowPriority: tasks.filter(t => t.priority < 0).length
+    };
   }
 
   cancelTask(taskId: string): boolean {

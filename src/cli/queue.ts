@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { ProcessManager } from '../core/ProcessManager';
+import { PRIORITY } from '../core/types';
 
 const manager = new ProcessManager({
   queue: { emitQueueEvents: true }
@@ -45,6 +46,39 @@ function printQueueHealth() {
   console.log(`Processing Rate: ${health.processingRate.toFixed(2)} tasks/sec`);
   console.log(`Average Wait Time: ${Math.round(health.averageWaitTimeWindow)}ms`);
   console.log(`Last Check: ${new Date(health.lastCheck).toLocaleString()}`);
+}
+
+function printPriorityStats() {
+  const stats = manager.getPriorityStats();
+  console.log('Priority Distribution:');
+  console.log(`  High Priority: ${stats.highPriority} tasks`);
+  console.log(`  Normal Priority: ${stats.normal} tasks`);
+  console.log(`  Low Priority: ${stats.lowPriority} tasks`);
+}
+
+function printTasksByPriority() {
+  const tasks = manager.getTasksByPriority();
+  
+  if (tasks.length === 0) {
+    console.log('No queued tasks');
+    return;
+  }
+  
+  console.log('Tasks by Priority (highest first):');
+  tasks.forEach(task => {
+    const age = Math.round((Date.now() - task.queuedAt) / 1000);
+    const priorityName = getPriorityName(task.priority);
+    console.log(`  ${task.id || 'unknown'}: priority ${task.priority} (${priorityName}) - queued ${age}s ago`);
+  });
+}
+
+function getPriorityName(priority: number): string {
+  if (priority >= PRIORITY.CRITICAL) return 'CRITICAL';
+  if (priority >= PRIORITY.HIGH) return 'HIGH';
+  if (priority > PRIORITY.NORMAL) return 'HIGH';
+  if (priority === PRIORITY.NORMAL) return 'NORMAL';
+  if (priority >= PRIORITY.LOW) return 'LOW';
+  return 'BATCH';
 }
 
 function printTasks(type: 'queued' | 'running') {
@@ -180,6 +214,50 @@ async function main() {
       console.log('Shutdown complete');
       break;
       
+    case 'priority':
+      const prioritySubCommand = args[1];
+      
+      if (prioritySubCommand === 'stats') {
+        printPriorityStats();
+      } else if (prioritySubCommand === 'list') {
+        printTasksByPriority();
+      } else if (prioritySubCommand === 'set') {
+        const taskId = args[2];
+        const priorityValue = args[3];
+        
+        if (!taskId || !priorityValue) {
+          console.error('Usage: queue priority set <task_id> <priority>');
+          console.error('Priority can be a number or: CRITICAL, HIGH, NORMAL, LOW, BATCH');
+          process.exit(1);
+        }
+        
+        let priority: number;
+        if (priorityValue.toUpperCase() in PRIORITY) {
+          priority = PRIORITY[priorityValue.toUpperCase() as keyof typeof PRIORITY];
+        } else {
+          priority = parseInt(priorityValue);
+          if (isNaN(priority)) {
+            console.error('Invalid priority value. Use a number or: CRITICAL, HIGH, NORMAL, LOW, BATCH');
+            process.exit(1);
+          }
+        }
+        
+        const success = manager.reprioritizeTask(taskId, priority);
+        if (success) {
+          console.log(`Updated task ${taskId} priority to ${priority} (${getPriorityName(priority)})`);
+        } else {
+          console.error(`Failed to update priority for task ${taskId}. Task may not exist or not be queued.`);
+          process.exit(1);
+        }
+      } else {
+        console.error('Usage: queue priority <stats|list|set>');
+        console.error('  stats        Show priority distribution');
+        console.error('  list         List tasks by priority');
+        console.error('  set <id> <p> Set task priority');
+        process.exit(1);
+      }
+      break;
+      
     case 'help':
     case undefined:
       console.log('Queue Management Commands:');
@@ -193,6 +271,10 @@ async function main() {
       console.log('                   Examples: tag:prod, cmd:sleep, all');
       console.log('  concurrency <n>  Set concurrency limit');
       console.log('  rate-limit <ms> <cap>  Set rate limiting');
+      console.log('  priority stats   Show priority distribution');
+      console.log('  priority list    List tasks by priority (highest first)');
+      console.log('  priority set <id> <priority>  Set task priority');
+      console.log('                   Priority: CRITICAL|HIGH|NORMAL|LOW|BATCH or number');
       console.log('  shutdown [timeout] [--force] [--no-cancel]');
       console.log('                   Graceful shutdown with optional timeout');
       console.log('  help             Show this help');

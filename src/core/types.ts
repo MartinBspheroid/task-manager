@@ -72,13 +72,31 @@ export interface QueueOptions {
   throwOnTimeout?: boolean;
 }
 
+/** Priority aging configuration */
+export interface PriorityAging {
+  /** Enable priority aging */
+  enabled: boolean;
+  
+  /** Priority increase per minute */
+  increment: number;
+  
+  /** Maximum priority that can be reached through aging */
+  maxPriority: number;
+  
+  /** When the task was queued (for aging calculation) */
+  queuedAt?: number;
+}
+
 /** Per-task queue options */
 export interface TaskQueueOptions {
   /** Skip queue and start immediately */
   immediate?: boolean;
   
-  /** Task priority (higher runs first) */
+  /** Task priority (higher runs first, default: 0) */
   priority?: number;
+  
+  /** Auto-adjust priority over time */
+  aging?: PriorityAging;
   
   /** Custom timeout for this specific task */
   timeout?: number;
@@ -91,6 +109,39 @@ export interface TaskQueueOptions {
   
   /** AbortSignal for task cancellation */
   signal?: AbortSignal;
+}
+
+/** Priority constants for standardized usage */
+export const PRIORITY = {
+  CRITICAL: 1000,
+  HIGH: 100, 
+  NORMAL: 0,
+  LOW: -100,
+  BATCH: -1000
+} as const;
+
+/** Type for priority levels */
+export type PriorityLevel = typeof PRIORITY[keyof typeof PRIORITY];
+
+/** Queued task information with priority details */
+export interface QueuedTaskInfo {
+  /** Task ID */
+  id: string;
+  
+  /** Original priority */
+  basePriority: number;
+  
+  /** Current effective priority (including aging) */
+  effectivePriority: number;
+  
+  /** Time when task was queued */
+  queuedAt: number;
+  
+  /** Priority aging configuration if enabled */
+  aging?: PriorityAging;
+  
+  /** Task metadata */
+  metadata?: Record<string, unknown>;
 }
 
 /** Queue statistics */
