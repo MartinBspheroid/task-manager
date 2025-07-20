@@ -157,3 +157,23 @@ export type QueueEventType =
   | 'queue:idle'     // Queue became idle
   | 'queue:empty'    // Queue became empty
   | 'queue:next';    // Task finished (success or failure)
+
+/** Default queue configuration preserving v1.x behavior */
+export const DEFAULT_QUEUE_CONFIG = {
+  concurrency: Infinity,
+  autoStart: true,
+  emitQueueEvents: false,
+  throwOnTimeout: true
+} as const;
+
+/** ProcessManager constructor options */
+export interface ProcessManagerOptions {
+  /** Default log directory for tasks */
+  defaultLogDir?: string;
+  
+  /** Queue configuration */
+  queue?: QueueOptions;
+  
+  /** Global hooks for all tasks */
+  hooks?: HookCallbacks;
+}

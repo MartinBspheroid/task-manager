@@ -14,6 +14,7 @@ export interface ProcessTaskOpts {
   hooks?: HookCallbacks;   // hook callbacks
   hookManager?: HookManager; // optional custom hook manager
   queue?: TaskQueueOptions;  // per-task queue options
+  delayStart?: boolean;    // if true, don't start process immediately
 }
 
 export class ProcessTask extends EventEmitter {
@@ -36,21 +37,40 @@ export class ProcessTask extends EventEmitter {
       id,
       cmd: opts.cmd,
       pid: -1,
-      startedAt: Date.now(),
-      status: 'running',
+      startedAt: opts.delayStart ? 0 : Date.now(),
+      status: opts.delayStart ? 'queued' : 'running',
       logFile,
       tags: opts.tags,
     };
 
-    try {
-      // Initialize the process immediately
-      this.#initializeProcess(opts);
-    } catch (error) {
-      // Handle startup failure
-      this.#handleStartupFailure(error as Error);
+    if (!opts.delayStart) {
+      try {
+        // Initialize the process immediately
+        this.#initializeProcess(opts);
+      } catch (error) {
+        // Handle startup failure
+        this.#handleStartupFailure(error as Error);
+      }
     }
   }
 
+  /**
+   * Start a delayed process (used with queue integration)
+   */
+  startDelayedProcess(opts: ProcessTaskOpts): void {
+    if (this.info.status !== 'queued') {
+      throw new Error('Can only start delayed process when status is queued');
+    }
+    
+    this.info.status = 'running';
+    this.info.startedAt = Date.now();
+    
+    try {
+      this.#initializeProcess(opts);
+    } catch (error) {
+      this.#handleStartupFailure(error as Error);
+    }
+  }
 
   #initializeProcess(opts: ProcessTaskOpts): void {
     // open log file early so we can pipe right away
