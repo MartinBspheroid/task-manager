@@ -13,6 +13,12 @@ import type {
 export class HookManager {
   private defaultTimeout = 5000; // 5 seconds
 
+  constructor(timeout?: number) {
+    if (timeout !== undefined) {
+      this.defaultTimeout = timeout;
+    }
+  }
+
   async executeOnSuccess(taskInfo: TaskInfo, hooks: OnSuccessHook[] = []): Promise<void> {
     await this.executeHooks('onSuccess', hooks, taskInfo);
   }

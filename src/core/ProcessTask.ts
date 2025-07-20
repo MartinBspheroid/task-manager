@@ -5,7 +5,6 @@ import * as fs from 'fs';
 import { EventEmitter } from 'events';
 import type { TaskInfo, TaskStatus, HookCallbacks } from './types';
 import { HookManager } from './HookManager';
-import { LogFileWatcher } from './LogFileWatcher';
 
 export interface ProcessTaskOpts {
   cmd: string[];
@@ -13,6 +12,7 @@ export interface ProcessTaskOpts {
   idleTimeoutMs?: number;  // default 5 min
   tags?: string[];         // optional tags for grouping
   hooks?: HookCallbacks;   // hook callbacks
+  hookManager?: HookManager; // optional custom hook manager
 }
 
 export class ProcessTask extends EventEmitter {
@@ -20,8 +20,7 @@ export class ProcessTask extends EventEmitter {
   #proc?: ReturnType<typeof spawn>;
   #logStream?: fs.WriteStream;
   #idleTimer?: NodeJS.Timeout;
-  #hookManager = new HookManager();
-  #logWatcher?: LogFileWatcher;
+  #hookManager: HookManager;
   #hooks: HookCallbacks;
 
   constructor(opts: ProcessTaskOpts) {
@@ -30,6 +29,7 @@ export class ProcessTask extends EventEmitter {
     const id = randomUUID();
     const logFile = `${opts.logDir}/${id}.log`;
     this.#hooks = opts.hooks || {};
+    this.#hookManager = opts.hookManager || new HookManager();
     
     this.info = {
       id,
@@ -54,15 +54,6 @@ export class ProcessTask extends EventEmitter {
     // open log file early so we can pipe right away
     this.#logStream = fs.createWriteStream(this.info.logFile, { flags: 'a' });
 
-    // Start log file watching if onChange hooks exist
-    if (this.#hooks.onChange && this.#hooks.onChange.length > 0) {
-      this.#logWatcher = new LogFileWatcher(
-        this.info,
-        this.#hooks.onChange,
-        this.#hookManager
-      );
-      this.#logWatcher.start();
-    }
 
     try {
       this.#proc = spawn({
@@ -89,6 +80,12 @@ export class ProcessTask extends EventEmitter {
             write: (chunk) => {
               this.#logStream?.write(chunk);
               resetIdle();
+              
+              // Trigger onChange hooks if they exist
+              if (this.#hooks.onChange && this.#hooks.onChange.length > 0) {
+                const content = typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk);
+                this.#hookManager.executeOnChange(this.info, content, this.#hooks.onChange);
+              }
             },
           }),
         );
@@ -180,7 +177,6 @@ export class ProcessTask extends EventEmitter {
 
   #cleanup(): void {
     this.#logStream?.end();
-    this.#logWatcher?.stop();
   }
 
   /** send data to the child's STDIN */

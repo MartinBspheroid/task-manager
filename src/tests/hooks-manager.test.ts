@@ -120,33 +120,51 @@ test('hook execution error handling', async () => {
 test('hook timeout protection', async () => {
   mkdirSync('logs', { recursive: true });
   
-  const manager = new ProcessManager();
-  let hookStarted = false;
-  let hookCompleted = false;
+  // Create a custom HookManager with shorter timeout for testing
+  const { HookManager } = await import('../core/HookManager');
+  const hookManager = new HookManager(2000); // 2 second timeout
   
-  manager.start({
+  const { ProcessTask } = await import('../core/ProcessTask');
+  let hookStarted = false;
+  let hookTimeoutErrorCaught = false;
+  
+  // Capture console.error to verify timeout error was logged
+  const originalConsoleError = console.error;
+  console.error = (...args: any[]) => {
+    const message = args.join(' ');
+    if (message.includes('Hook timeout: onSuccess')) {
+      hookTimeoutErrorCaught = true;
+    }
+    originalConsoleError(...args);
+  };
+  
+  // Create ProcessTask with custom hook manager
+  const task = new ProcessTask({
     cmd: ['echo', 'timeout test'],
     logDir: 'logs',
+    hookManager: hookManager,
     hooks: {
       onSuccess: [
         async () => {
           hookStarted = true;
-          await new Promise(r => setTimeout(r, 6000)); // 6 second delay (will timeout at 5s)
-          hookCompleted = true;
+          await new Promise(r => setTimeout(r, 3000)); // 3 second delay (will timeout at 2s)
         }
       ]
     }
   });
   
   // Wait a bit to ensure hook starts
-  await new Promise((r) => setTimeout(r, 1000));
+  await new Promise((r) => setTimeout(r, 500));
   expect(hookStarted).toBe(true);
   
-  // Wait for hook timeout to occur (slightly more than 5 seconds)
-  await new Promise((r) => setTimeout(r, 5000));
+  // Wait for hook timeout to occur (slightly more than 2 seconds)
+  await new Promise((r) => setTimeout(r, 2500));
   
-  // Hook should not have completed due to timeout
-  expect(hookCompleted).toBe(false);
+  // Restore console.error
+  console.error = originalConsoleError;
+  
+  // Hook timeout error should have been caught and logged
+  expect(hookTimeoutErrorCaught).toBe(true);
 });
 
 test('mixed hook types work together', async () => {
@@ -157,7 +175,7 @@ test('mixed hook types work together', async () => {
   let changeCalled = false;
   
   const info = manager.start({
-    cmd: ['bash', '-c', 'echo "mixed test output"; sleep 0.1'],
+    cmd: ['echo', 'mixed test output'],
     logDir: 'logs',
     hooks: {
       onSuccess: [() => { successCalled = true; }],
@@ -165,8 +183,8 @@ test('mixed hook types work together', async () => {
     }
   });
   
-  // Wait longer to ensure both process completion and file watching
-  await new Promise((r) => setTimeout(r, 2500));
+  // Wait for both hooks to execute
+  await new Promise((r) => setTimeout(r, 1000));
   
   expect(successCalled).toBe(true);
   expect(changeCalled).toBe(true);
