@@ -34,7 +34,6 @@ test('killByTag() terminates only processes with matching tag', async () => {
   });
   
   // Verify all tasks are running
-  await new Promise((r) => setTimeout(r, 50));
   expect(manager.listRunning().length).toBe(4);
   
   // Kill all web-server tagged processes
@@ -78,7 +77,6 @@ test('killByTag() returns empty array when no processes have the tag', async () 
   expect(killedIds).toEqual([]);
   
   // Verify task is still running
-  await new Promise((r) => setTimeout(r, 50));
   expect(manager.listRunning().length).toBe(1);
   
   // Clean up
@@ -111,7 +109,6 @@ test('killByTag() works with partial tag matches', async () => {
   });
   
   // Kill all production tagged processes
-  await new Promise((r) => setTimeout(r, 50));
   const killedIds = manager.killByTag('production');
   
   // Should kill tasks 1 and 2
@@ -153,7 +150,7 @@ test('killByTag() only affects running processes', async () => {
   });
   
   // Wait for quick process to exit
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((r) => setTimeout(r, 100));
   
   // Kill by tag
   const killedIds = manager.killByTag('test');

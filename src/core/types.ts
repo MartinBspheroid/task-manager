@@ -1,5 +1,5 @@
 // src/core/types.ts
-export type TaskStatus = 'queued' | 'running' | 'exited' | 'killed' | 'timeout' | 'start-failed';
+export type TaskStatus = 'running' | 'exited' | 'killed' | 'timeout' | 'start-failed';
 
 export interface TaskInfo {
   id: string;          // UUID v4

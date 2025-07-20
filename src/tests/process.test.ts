@@ -14,7 +14,6 @@ test('spawn, idle-timeout kill', async () => {
     idleTimeoutMs: 2000, // 2s for test
   });
 
-  await new Promise((r) => setTimeout(r, 50));
   await new Promise((r) => setTimeout(r, 3000)); // wait past timeout
   const list = manager.list();
   expect(list[0]?.status).toBe('timeout');

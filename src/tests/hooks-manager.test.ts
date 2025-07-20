@@ -152,8 +152,6 @@ test('hook timeout protection', async () => {
       ]
     }
   });
-
-  task.run();
   
   // Wait a bit to ensure hook starts
   await new Promise((r) => setTimeout(r, 500));

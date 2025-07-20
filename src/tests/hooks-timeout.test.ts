@@ -22,8 +22,7 @@ test('onTimeout hook is called when task times out', async () => {
     }
   });
 
-  // Wait for task to start and then timeout
-  await new Promise((r) => setTimeout(r, 50));
+  // Wait for timeout to trigger (1s timeout + buffer)
   await new Promise((r) => setTimeout(r, 1500));
 
   expect(hookCalled).toBe(true);
@@ -50,7 +49,7 @@ test('onTimeout hook is not called for active processes', async () => {
   });
 
   // Process should complete before timeout
-  await new Promise((r) => setTimeout(r, 800));
+  await new Promise((r) => setTimeout(r, 300));
 
   expect(timeoutHookCalled).toBe(false);
   expect(successHookCalled).toBe(true);
@@ -75,7 +74,7 @@ test('multiple onTimeout hooks are called', async () => {
     }
   });
 
-  await new Promise((r) => setTimeout(r, 1500));
+  await new Promise((r) => setTimeout(r, 1000));
 
   expect(hook1Called).toBe(true);
   expect(hook2Called).toBe(true);
@@ -97,7 +96,7 @@ test('global onTimeout hooks work', async () => {
     idleTimeoutMs: 500
   });
 
-  await new Promise((r) => setTimeout(r, 1500));
+  await new Promise((r) => setTimeout(r, 1000));
 
   expect(globalHookCalled).toBe(true);
 });
@@ -118,7 +117,7 @@ test('timeout due to no output after initial output', async () => {
   });
 
   // Wait for initial output + timeout
-  await new Promise((r) => setTimeout(r, 2000));
+  await new Promise((r) => setTimeout(r, 1200));
 
   expect(hookCalled).toBe(true);
 });
