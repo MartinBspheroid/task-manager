@@ -14,6 +14,15 @@ export interface TaskInfo {
   startError?: Error;  // error if task failed to start
 }
 
+export interface ExitResult {
+  taskInfo: TaskInfo;
+  exitCode: number | null;
+  signal: string | null;
+  duration: number;
+  stdout: string;
+  stderr: string;
+}
+
 // Hook callback function types
 export type HookCallback<T = any> = (taskInfo: TaskInfo, ...args: T[]) => void | Promise<void>;
 

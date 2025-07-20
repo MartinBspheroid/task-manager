@@ -74,11 +74,11 @@
       "id": "008", 
       "name": "add-synchronous-immediate-start",
       "title": "Add Synchronous Immediate-Start Mode",
-      "status": "pending",
+      "status": "completed",
       "phase": "core-implementation",
       "description": "Ensure tasks can bypass queue and start immediately when requested",
       "dependencies": ["007"],
-      "completedAt": null
+      "completedAt": "2025-01-21T00:00:00Z"
     },
     {
       "id": "009",
@@ -151,7 +151,7 @@
       "completedAt": null
     }
   ],
-  "currentTask": "008",
+  "currentTask": "009",
   "phases": {
     "stabilization": {
       "name": "Stabilization", 

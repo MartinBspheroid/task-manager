@@ -1,8 +1,9 @@
 // src/core/ProcessManager.ts
 import { ProcessTask, type ProcessTaskOpts } from './ProcessTask';
-import type { TaskInfo, HookCallbacks, ProcessManagerOptions, QueueStats, TaskQueueOptions } from './types';
+import type { TaskInfo, HookCallbacks, ProcessManagerOptions, QueueStats, ExitResult } from './types';
 import { HookManager } from './HookManager';
 import { ProcessQueue } from './ProcessQueue';
+import { TaskHandle } from './TaskHandle';
 import { EventEmitter } from 'events';
 
 export class ProcessManager extends EventEmitter {
@@ -90,11 +91,9 @@ export class ProcessManager extends EventEmitter {
             task.startDelayedProcess(enhancedOpts);
             
             // Wait for the process to complete
-            return new Promise<void>((resolve, reject) => {
+            return new Promise<void>((resolve) => {
               const cleanup = () => {
-                task.off('exited', onExit);
-                task.off('killed', onExit);
-                task.off('timeout', onExit);
+                task.off('exit', onExit);
                 task.off('start-failed', onExit);
               };
               
@@ -103,9 +102,7 @@ export class ProcessManager extends EventEmitter {
                 resolve();
               };
               
-              task.on('exited', onExit);
-              task.on('killed', onExit);
-              task.on('timeout', onExit);
+              task.on('exit', onExit);
               task.on('start-failed', onExit);
             });
           }
@@ -212,11 +209,9 @@ export class ProcessManager extends EventEmitter {
             task.startDelayedProcess(enhancedOpts);
             
             // Wait for the process to complete
-            return new Promise<void>((resolve, reject) => {
+            return new Promise<void>((resolve) => {
               const cleanup = () => {
-                task.off('exited', onExit);
-                task.off('killed', onExit);
-                task.off('timeout', onExit);
+                task.off('exit', onExit);
                 task.off('start-failed', onExit);
               };
               
@@ -225,9 +220,7 @@ export class ProcessManager extends EventEmitter {
                 resolve();
               };
               
-              task.on('exited', onExit);
-              task.on('killed', onExit);
-              task.on('timeout', onExit);
+              task.on('exit', onExit);
               task.on('start-failed', onExit);
             });
           }
@@ -304,5 +297,237 @@ export class ProcessManager extends EventEmitter {
   
   isQueueEmpty(): boolean {
     return this.#queue.isEmpty();
+  }
+  
+  // Enhanced async methods
+  
+  async startAndWait(opts: ProcessTaskOpts): Promise<ExitResult> {
+    const taskInfo = await this.startAsync(opts);
+    return this.waitForTask(taskInfo.id);
+  }
+  
+  async waitForTask(taskId: string): Promise<ExitResult> {
+    const task = this.#tasks.get(taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+    
+    return new Promise((resolve, reject) => {
+      // If already completed, resolve immediately
+      if (task.info.status === 'exited' || 
+          task.info.status === 'killed' || 
+          task.info.status === 'timeout') {
+        resolve(this.createExitResult(task));
+        return;
+      }
+      
+      // If failed to start, reject
+      if (task.info.status === 'start-failed') {
+        reject(task.info.startError || new Error('Task failed to start'));
+        return;
+      }
+      
+      // Wait for completion
+      const cleanup = () => {
+        task.off('exit', onExit);
+        task.off('start-failed', onError);
+      };
+      
+      const onExit = () => {
+        cleanup();
+        resolve(this.createExitResult(task));
+      };
+      
+      const onError = () => {
+        cleanup();
+        reject(task.info.startError || new Error('Task failed'));
+      };
+      
+      task.on('exit', onExit);
+      task.on('start-failed', onError);
+    });
+  }
+  
+  async waitForAll(taskIds?: string[]): Promise<ExitResult[]> {
+    const ids = taskIds || Array.from(this.#tasks.keys());
+    const promises = ids.map(id => this.waitForTask(id));
+    return Promise.allSettled(promises).then(results => {
+      const exitResults: ExitResult[] = [];
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          exitResults.push(result.value);
+        } else {
+          // Create error result for failed tasks
+          const task = this.#tasks.get(ids[results.indexOf(result)]!);
+          if (task) {
+            exitResults.push({
+              taskInfo: task.info,
+              exitCode: -1,
+              signal: null,
+              duration: (task.info.exitedAt ?? Date.now()) - task.info.startedAt,
+              stdout: '',
+              stderr: result.reason?.message || 'Task failed'
+            });
+          }
+        }
+      }
+      return exitResults;
+    });
+  }
+  
+  // Batch operations
+  
+  startAll(optsList: ProcessTaskOpts[]): TaskInfo[] {
+    return optsList.map(opts => this.start(opts));
+  }
+  
+  async startAllAsync(optsList: ProcessTaskOpts[]): Promise<TaskInfo[]> {
+    const promises = optsList.map(opts => this.startAsync(opts));
+    return Promise.all(promises);
+  }
+  
+  private createExitResult(task: ProcessTask): ExitResult {
+    const duration = task.info.exitedAt 
+      ? task.info.exitedAt - task.info.startedAt
+      : Date.now() - task.info.startedAt;
+      
+    return {
+      taskInfo: { ...task.info },
+      exitCode: task.info.exitCode ?? null,
+      signal: null, // TODO: Track signal if killed
+      duration,
+      stdout: this.getTaskOutput(task.info.id, 'stdout'),
+      stderr: this.getTaskOutput(task.info.id, 'stderr')
+    };
+  }
+  
+  private getTaskOutput(taskId: string, _stream: 'stdout' | 'stderr'): string {
+    // For now, we'll read from the combined log file
+    // In a real implementation, we might want to separate stdout/stderr
+    try {
+      const task = this.#tasks.get(taskId);
+      const logPath = task?.info.logFile;
+      if (logPath && require('fs').existsSync(logPath)) {
+        return require('fs').readFileSync(logPath, 'utf-8');
+      }
+    } catch (error) {
+      // Log file not available
+    }
+    return '';
+  }
+  
+  // TaskHandle-related methods
+  
+  startWithHandle(opts: ProcessTaskOpts): TaskHandle {
+    const enhancedOpts = this.enhanceOptions(opts);
+    
+    if (this.shouldRunImmediately(opts)) {
+      // Fast path: immediate execution
+      const task = new ProcessTask(enhancedOpts);
+      this.#tasks.set(task.info.id, task);
+      return new TaskHandle(task, this);
+    } else {
+      // Queue path: create task with delayed start
+      const delayedOpts = { ...enhancedOpts, delayStart: true };
+      const task = new ProcessTask(delayedOpts);
+      this.#tasks.set(task.info.id, task);
+      
+      this.#queue.add(
+        async () => {
+          if (task.info.status === 'queued') {
+            task.startDelayedProcess(enhancedOpts);
+            
+            // Wait for the process to complete
+            return new Promise<void>((resolve) => {
+              const cleanup = () => {
+                task.off('exit', onExit);
+                task.off('start-failed', onExit);
+              };
+              
+              const onExit = () => {
+                cleanup();
+                resolve();
+              };
+              
+              task.on('exit', onExit);
+              task.on('start-failed', onExit);
+            });
+          }
+          return Promise.resolve();
+        },
+        opts.queue
+      ).catch(error => {
+        // Handle queue errors
+        task.info.status = 'start-failed';
+        task.info.startError = error;
+      });
+      
+      return new TaskHandle(task, this);
+    }
+  }
+  
+  async startAsyncWithHandle(opts: ProcessTaskOpts): Promise<TaskHandle> {
+    const enhancedOpts = this.enhanceOptions(opts);
+    
+    if (this.shouldRunImmediately(opts)) {
+      // Immediate execution
+      const task = new ProcessTask(enhancedOpts);
+      this.#tasks.set(task.info.id, task);
+      return new TaskHandle(task, this);
+    } else {
+      // Queue execution with await
+      const delayedOpts = { ...enhancedOpts, delayStart: true };
+      const task = new ProcessTask(delayedOpts);
+      this.#tasks.set(task.info.id, task);
+      
+      await this.#queue.add(
+        async () => {
+          if (task.info.status === 'queued') {
+            task.startDelayedProcess(enhancedOpts);
+            
+            // Wait for the process to complete
+            return new Promise<void>((resolve) => {
+              const cleanup = () => {
+                task.off('exit', onExit);
+                task.off('start-failed', onExit);
+              };
+              
+              const onExit = () => {
+                cleanup();
+                resolve();
+              };
+              
+              task.on('exit', onExit);
+              task.on('start-failed', onExit);
+            });
+          }
+          return Promise.resolve();
+        },
+        opts.queue
+      );
+      
+      return new TaskHandle(task, this);
+    }
+  }
+  
+  getTaskHandle(taskId: string): TaskHandle | undefined {
+    const task = this.#tasks.get(taskId);
+    return task ? new TaskHandle(task, this) : undefined;
+  }
+  
+  cancelTask(taskId: string): boolean {
+    const task = this.#tasks.get(taskId);
+    if (!task || task.info.status !== 'queued') {
+      return false;
+    }
+    
+    // Mark as cancelled and remove from internal tracking
+    task.info.status = 'start-failed';
+    task.info.startError = new Error('Task was cancelled');
+    task.emit('start-failed', task.info.startError);
+    
+    // Note: We can't easily remove from queue without queue task IDs
+    // For now, the task will remain in queue but won't start due to status check
+    return true;
   }
 }
