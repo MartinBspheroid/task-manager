@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { spawn } from 'bun';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
-import type { TaskInfo, HookCallbacks } from './types';
+import type { TaskInfo, HookCallbacks, TaskQueueOptions } from './types';
 import { HookManager } from './HookManager';
 
 export interface ProcessTaskOpts {
@@ -13,6 +13,7 @@ export interface ProcessTaskOpts {
   tags?: string[];         // optional tags for grouping
   hooks?: HookCallbacks;   // hook callbacks
   hookManager?: HookManager; // optional custom hook manager
+  queue?: TaskQueueOptions;  // per-task queue options
 }
 
 export class ProcessTask extends EventEmitter {
