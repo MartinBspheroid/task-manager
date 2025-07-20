@@ -423,4 +423,30 @@ export class ProcessQueue extends EventEmitter {
   isEmpty(): boolean {
     return this.size === 0;
   }
+  
+  /**
+   * Set rate limiting (placeholder - basic implementation)
+   */
+  setRateLimit(interval: number, cap: number): void {
+    // Store rate limit configuration for future use
+    this.#config.interval = interval;
+    this.#config.intervalCap = cap;
+    
+    if (this.#config.emitQueueEvents) {
+      this.emit('config:updated', { interval, intervalCap: cap });
+    }
+  }
+  
+  /**
+   * Set priority for a queued task (placeholder - basic implementation)
+   * Returns true if successful, false if task not found or already running
+   */
+  setPriority(taskId: string, priority: number): void {
+    // For the SimpleQueue implementation, we don't have direct priority support
+    // This is a placeholder that could be enhanced with a proper priority queue
+    // For now, we just emit an event to indicate the attempt was made
+    if (this.#config.emitQueueEvents) {
+      this.emit('task:priority-updated', { taskId, priority });
+    }
+  }
 }

@@ -1,6 +1,6 @@
 // src/core/ProcessManager.ts
 import { ProcessTask, type ProcessTaskOpts } from './ProcessTask';
-import type { TaskInfo, HookCallbacks, ProcessManagerOptions, QueueStats, ExitResult } from './types';
+import type { TaskInfo, HookCallbacks, ProcessManagerOptions, QueueStats, ExitResult, QueueHealth, ShutdownOptions, TaskPredicate } from './types';
 import { HookManager } from './HookManager';
 import { ProcessQueue } from './ProcessQueue';
 import { TaskHandle } from './TaskHandle';
@@ -44,6 +44,18 @@ export class ProcessManager extends EventEmitter {
       this.#queue.on('queue:resumed', () => {
         this.emit('queue:resumed');
       });
+      
+      this.#queue.on('queue:cleared', () => {
+        this.emit('queue:cleared');
+      });
+      
+      this.#queue.on('task:added', (data) => {
+        this.emit('queue:add', data);
+      });
+      
+      this.#queue.on('task:completed', (data) => {
+        this.emit('queue:completed', data);
+      });
     }
   }
   
@@ -71,12 +83,14 @@ export class ProcessManager extends EventEmitter {
   
   start(opts: ProcessTaskOpts): TaskInfo {
     const enhancedOpts = this.enhanceOptions(opts);
+    this.#totalAdded++;
     
     // Determine execution path
     if (this.shouldRunImmediately(opts)) {
       // Fast path: immediate execution (v1.x compatibility)
       const task = new ProcessTask(enhancedOpts);
       this.#tasks.set(task.info.id, task);
+      this.trackTaskStatistics(task);
       return task.info;
     } else {
       // Queue path: create task with delayed start
@@ -84,11 +98,17 @@ export class ProcessManager extends EventEmitter {
       const task = new ProcessTask(delayedOpts);
       this.#tasks.set(task.info.id, task);
       
+      const queueTime = Date.now();
+      
       this.#queue.add(
         async () => {
           // Actually start the process when queue allows it
           if (task.info.status === 'queued') {
+            const waitTime = Date.now() - queueTime;
+            this.#waitTimes.push(waitTime);
+            
             task.startDelayedProcess(enhancedOpts);
+            this.trackTaskStatistics(task);
             
             // Wait for the process to complete
             return new Promise<void>((resolve) => {
@@ -113,10 +133,31 @@ export class ProcessManager extends EventEmitter {
         // Handle queue errors
         task.info.status = 'start-failed';
         task.info.startError = error;
+        this.#totalFailed++;
       });
       
       return task.info;
     }
+  }
+
+  private trackTaskStatistics(task: ProcessTask): void {
+    task.on('exit', () => {
+      const duration = task.info.exitedAt! - task.info.startedAt;
+      this.#runTimes.push(duration);
+      
+      if (task.info.status === 'exited' && task.info.exitCode === 0) {
+        this.#totalCompleted++;
+      } else {
+        this.#totalFailed++;
+      }
+      
+      this.emit('queue:stats', this.getQueueStats());
+    });
+    
+    task.on('start-failed', () => {
+      this.#totalFailed++;
+      this.emit('queue:stats', this.getQueueStats());
+    });
   }
 
   list(): TaskInfo[] {
@@ -250,14 +291,45 @@ export class ProcessManager extends EventEmitter {
     this.#queue.clear();
   }
   
+  // Enhanced statistics tracking
+  #totalAdded = 0;
+  #totalCompleted = 0;
+  #totalFailed = 0;
+  #totalCancelled = 0;
+  #waitTimes: number[] = [];
+  #runTimes: number[] = [];
+  #queueStartTime = Date.now();
+
   getQueueStats(): QueueStats {
     const stats = this.#queue.getStats();
+    const now = Date.now();
+    const uptime = now - this.#queueStartTime;
+    
+    const avgWaitTime = this.#waitTimes.length > 0 
+      ? this.#waitTimes.reduce((a, b) => a + b, 0) / this.#waitTimes.length 
+      : 0;
+    
+    const avgRunTime = this.#runTimes.length > 0 
+      ? this.#runTimes.reduce((a, b) => a + b, 0) / this.#runTimes.length 
+      : 0;
+    
+    const throughput = uptime > 0 ? (this.#totalCompleted / (uptime / 1000)) : 0;
+    const utilization = this.getQueueConcurrency() > 0 
+      ? (stats.pending / this.getQueueConcurrency()) * 100 
+      : 0;
+
     return {
       size: stats.size,
       pending: stats.pending,
       paused: stats.isPaused,
-      totalAdded: 0, // TODO: Track this
-      totalCompleted: 0 // TODO: Track this
+      totalAdded: this.#totalAdded,
+      totalCompleted: this.#totalCompleted,
+      totalFailed: this.#totalFailed,
+      totalCancelled: this.#totalCancelled,
+      averageWaitTime: avgWaitTime,
+      averageRunTime: avgRunTime,
+      throughput,
+      utilization: Math.min(utilization, 100)
     };
   }
   
@@ -515,6 +587,153 @@ export class ProcessManager extends EventEmitter {
     return task ? new TaskHandle(task, this) : undefined;
   }
   
+  // Advanced task management methods for Task 010
+  
+  async cancelTasks(predicate: (task: TaskInfo) => boolean): Promise<string[]> {
+    const cancelledIds: string[] = [];
+    
+    for (const [taskId, task] of this.#tasks) {
+      if (predicate(task.info)) {
+        if (task.info.status === 'queued') {
+          // Cancel queued task
+          task.info.status = 'start-failed';
+          task.info.startError = new Error('Task was cancelled');
+          task.emit('start-failed', task.info.startError);
+          this.#totalCancelled++;
+          cancelledIds.push(taskId);
+          this.emit('task:cancelled', task.info);
+        } else if (task.info.status === 'running') {
+          // Kill running task
+          task.terminate();
+          this.#totalCancelled++;
+          cancelledIds.push(taskId);
+          this.emit('task:cancelled', task.info);
+        }
+      }
+    }
+    
+    return cancelledIds;
+  }
+  
+  reprioritizeTask(taskId: string, priority: number): boolean {
+    const task = this.#tasks.get(taskId);
+    if (!task || task.info.status !== 'queued') {
+      return false;
+    }
+    
+    // Update task metadata if it exists
+    if (task.info.metadata) {
+      task.info.metadata.priority = priority;
+    }
+    
+    // Try to update priority in queue via ProcessQueue
+    try {
+      this.#queue.setPriority(taskId, priority);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  
+  getQueuedTasks(): TaskInfo[] {
+    return [...this.#tasks.values()]
+      .filter(t => t.info.status === 'queued')
+      .map(t => t.info);
+  }
+  
+  getRunningTasks(): TaskInfo[] {
+    return this.listRunning();
+  }
+  
+  async waitForAvailableSlot(): Promise<void> {
+    const concurrency = this.getQueueConcurrency();
+    if (concurrency === Infinity) {
+      return; // No limit, always available
+    }
+    
+    while (this.#queue.getStats().pending >= concurrency) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+  }
+  
+  setConcurrency(limit: number): void {
+    this.setQueueConcurrency(limit);
+  }
+  
+  setRateLimit(interval: number, cap: number): void {
+    // Update queue rate limiting if supported
+    this.#queue.setRateLimit(interval, cap);
+  }
+  
+  getHealth(): QueueHealth {
+    const stats = this.getQueueStats();
+    const memoryUsage = process.memoryUsage().heapUsed;
+    const issues: string[] = [];
+    
+    // Check for potential issues
+    if (stats.utilization > 90) {
+      issues.push('High queue utilization');
+    }
+    
+    if (stats.averageWaitTime > 30000) { // 30 seconds
+      issues.push('High average wait time');
+    }
+    
+    if (memoryUsage > 500 * 1024 * 1024) { // 500MB
+      issues.push('High memory usage');
+    }
+    
+    if (stats.totalFailed / Math.max(stats.totalAdded, 1) > 0.1) { // 10% failure rate
+      issues.push('High failure rate');
+    }
+    
+    const status = issues.length === 0 ? 'healthy' : 
+                   issues.length <= 2 ? 'degraded' : 'unhealthy';
+    
+    return {
+      status,
+      issues,
+      memoryUsage,
+      processingRate: stats.throughput,
+      averageWaitTimeWindow: stats.averageWaitTime,
+      lastCheck: Date.now()
+    };
+  }
+  
+  async shutdown(options: ShutdownOptions = {}): Promise<void> {
+    const { timeout = 30000, force = false, cancelPending = true } = options;
+    
+    if (cancelPending) {
+      this.clearQueue();
+    } else {
+      this.pauseQueue();
+    }
+    
+    const runningTasks = this.getRunningTasks();
+    if (runningTasks.length === 0) {
+      return;
+    }
+    
+    // Wait for tasks to complete or timeout
+    const timeoutPromise = new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), timeout);
+    });
+    
+    const completionPromise = Promise.all(
+      runningTasks.map(task => this.waitForTask(task.id).catch(() => {}))
+    ).then(() => {});
+    
+    await Promise.race([completionPromise, timeoutPromise]);
+    
+    // Force kill remaining tasks if requested
+    if (force) {
+      const stillRunning = this.getRunningTasks();
+      for (const task of stillRunning) {
+        this.kill(task.id, 'SIGKILL');
+      }
+    }
+  }
+
   cancelTask(taskId: string): boolean {
     const task = this.#tasks.get(taskId);
     if (!task || task.info.status !== 'queued') {
@@ -525,6 +744,8 @@ export class ProcessManager extends EventEmitter {
     task.info.status = 'start-failed';
     task.info.startError = new Error('Task was cancelled');
     task.emit('start-failed', task.info.startError);
+    this.#totalCancelled++;
+    this.emit('task:cancelled', task.info);
     
     // Note: We can't easily remove from queue without queue task IDs
     // For now, the task will remain in queue but won't start due to status check

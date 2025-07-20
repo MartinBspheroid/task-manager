@@ -12,6 +12,7 @@ export interface TaskInfo {
   logFile: string;
   tags?: string[];     // optional tags for grouping
   startError?: Error;  // error if task failed to start
+  metadata?: Record<string, unknown>; // task metadata for queue filtering
 }
 
 export interface ExitResult {
@@ -108,7 +109,67 @@ export interface QueueStats {
   
   /** Total tasks completed since creation */
   totalCompleted: number;
+  
+  /** Total tasks that failed */
+  totalFailed: number;
+  
+  /** Total tasks that were cancelled */
+  totalCancelled: number;
+  
+  /** Average time tasks wait in queue (ms) */
+  averageWaitTime: number;
+  
+  /** Average time tasks take to run (ms) */
+  averageRunTime: number;
+  
+  /** Tasks completed per second */
+  throughput: number;
+  
+  /** Queue utilization percentage (0-100) */
+  utilization: number;
+  
+  /** Rate limit: remaining capacity in current interval */
+  intervalRemaining?: number;
+  
+  /** Rate limit: when current interval resets (epoch ms) */
+  intervalResetTime?: number;
 }
+
+/** Queue health status */
+export interface QueueHealth {
+  /** Overall health status */
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  
+  /** Identified issues */
+  issues: string[];
+  
+  /** Memory usage in bytes */
+  memoryUsage: number;
+  
+  /** Queue processing rate (tasks/sec) */
+  processingRate: number;
+  
+  /** Average task wait time in current window */
+  averageWaitTimeWindow: number;
+  
+  /** Timestamp of last health check */
+  lastCheck: number;
+}
+
+/** Shutdown options */
+export interface ShutdownOptions {
+  /** Timeout in ms to wait for tasks to complete */
+  timeout?: number;
+  
+  /** Force shutdown after timeout */
+  force?: boolean;
+  
+  /** Cancel pending tasks during shutdown */
+  cancelPending?: boolean;
+}
+
+/** Task predicate function for filtering */
+export type TaskPredicate = (task: TaskInfo) => boolean;
 
 /** Queue management interface */
 export interface QueueInterface {
@@ -146,6 +207,39 @@ export interface QueueInterface {
   setPriority(id: string, priority: number): void;
 }
 
+/** Enhanced queue manager interface for Task 010 */
+export interface QueueManager extends QueueInterface {
+  /** Cancel multiple tasks by predicate */
+  cancelTasks(predicate: TaskPredicate): Promise<string[]>;
+  
+  /** Reprioritize a task by ID */
+  reprioritizeTask(taskId: string, priority: number): boolean;
+  
+  /** Get enhanced queue statistics */
+  getStats(): QueueStats;
+  
+  /** Get tasks currently queued */
+  getQueuedTasks(): TaskInfo[];
+  
+  /** Get tasks currently running */
+  getRunningTasks(): TaskInfo[];
+  
+  /** Wait for queue to have available slot */
+  waitForAvailableSlot(): Promise<void>;
+  
+  /** Set concurrency limit */
+  setConcurrency(limit: number): void;
+  
+  /** Set rate limiting */
+  setRateLimit(interval: number, cap: number): void;
+  
+  /** Get queue health status */
+  getHealth(): QueueHealth;
+  
+  /** Graceful shutdown with options */
+  shutdown(options?: ShutdownOptions): Promise<void>;
+}
+
 /** Custom queue class interface for advanced users */
 export interface QueueClass {
   new(options?: any): {
@@ -165,7 +259,13 @@ export type QueueEventType =
   | 'queue:error'    // Task failed with error
   | 'queue:idle'     // Queue became idle
   | 'queue:empty'    // Queue became empty
-  | 'queue:next';    // Task finished (success or failure)
+  | 'queue:next'     // Task finished (success or failure)
+  | 'queue:paused'   // Queue was paused
+  | 'queue:resumed'  // Queue was resumed
+  | 'queue:cleared'  // Queue was cleared
+  | 'task:cancelled' // Task was cancelled
+  | 'task:timeout'   // Task timed out
+  | 'queue:stats';   // Queue statistics updated
 
 /** Default queue configuration preserving v1.x behavior */
 export const DEFAULT_QUEUE_CONFIG = {
