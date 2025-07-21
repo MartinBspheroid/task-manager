@@ -2,36 +2,78 @@
 
 ## ProcessManager
 
-The main interface for managing process tasks.
+The main interface for managing process tasks with optional queue support.
 
-### Methods
+### Constructor
+
+```typescript
+new ProcessManager(options?: ProcessManagerOptions)
+```
+
+**Parameters:**
+- `options.defaultLogDir?: string` - Default log directory for tasks
+- `options.queue?: QueueOptions` - Queue configuration (if omitted, unlimited concurrency)
+- `options.hooks?: HookCallbacks` - Global hooks for all tasks
+
+**Example:**
+```typescript
+// No queue (backward compatible)
+const manager = new ProcessManager();
+
+// With queue enabled
+const queuedManager = new ProcessManager({
+  queue: { concurrency: 4 },
+  defaultLogDir: './logs'
+});
+```
+
+### Core Methods
 
 #### `start(opts: ProcessTaskOpts): TaskInfo`
 
-Creates and starts a new process task.
+Creates and starts a new process task. If queue is enabled and at capacity, task will be queued.
 
 **Parameters:**
 - `opts.cmd: string[]` - Command and arguments to execute
 - `opts.logDir: string` - Directory for log files
 - `opts.idleTimeoutMs?: number` - Idle timeout in milliseconds (default: 300000)
 - `opts.tags?: string[]` - Optional tags for grouping and management
+- `opts.hooks?: HookCallbacks` - Task-specific hooks
+- `opts.queue?: TaskQueueOptions` - Task-specific queue options
 
 **Returns:** `TaskInfo` object with task details
 
 **Example:**
 ```typescript
-const manager = new ProcessManager();
 const info = manager.start({
   cmd: ['node', 'script.js'],
   logDir: './logs',
   idleTimeoutMs: 60000,
-  tags: ['web-server', 'production']
+  tags: ['web-server', 'production'],
+  queue: { priority: 100 } // Higher priority
+});
+```
+
+#### `startImmediate(opts: ProcessTaskOpts): TaskInfo`
+
+Starts a task immediately, bypassing any queue restrictions.
+
+**Parameters:** Same as `start()`
+
+**Returns:** `TaskInfo` object with task details
+
+**Example:**
+```typescript
+// Always runs immediately, even if queue is full
+const urgent = manager.startImmediate({
+  cmd: ['alert-handler.js'],
+  logDir: './logs'
 });
 ```
 
 #### `list(): TaskInfo[]`
 
-Returns information about all tasks (active and completed).
+Returns information about all tasks (running, queued, and completed).
 
 **Returns:** Array of `TaskInfo` objects
 
@@ -40,13 +82,6 @@ Returns information about all tasks (active and completed).
 Returns information about only currently running tasks.
 
 **Returns:** Array of `TaskInfo` objects with status 'running'
-
-**Example:**
-```typescript
-const manager = new ProcessManager();
-const runningTasks = manager.listRunning();
-console.log(`${runningTasks.length} tasks currently running`);
-```
 
 #### `kill(id: string, signal?: NodeJS.Signals): void`
 
@@ -67,13 +102,6 @@ Terminates all currently running tasks.
 
 **Returns:** Array of task IDs that were killed
 
-**Example:**
-```typescript
-const manager = new ProcessManager();
-const killedIds = manager.killAll();
-console.log(`Killed ${killedIds.length} running tasks`);
-```
-
 #### `killByTag(tag: string, signal?: NodeJS.Signals): string[]`
 
 Terminates all running tasks that have the specified tag.
@@ -83,13 +111,6 @@ Terminates all running tasks that have the specified tag.
 - `signal?: NodeJS.Signals` - Signal to send (default: 'SIGTERM')
 
 **Returns:** Array of task IDs that were killed
-
-**Example:**
-```typescript
-const manager = new ProcessManager();
-const killedIds = manager.killByTag('web-server');
-console.log(`Killed ${killedIds.length} web-server tasks`);
-```
 
 #### `write(id: string, input: string): void`
 
@@ -101,33 +122,145 @@ Sends input to a task's stdin.
 
 **Throws:** Error if task ID not found
 
-## ProcessTask
+### Queue Management Methods
 
-Individual process wrapper (typically not used directly).
+#### `pauseQueue(): void`
 
-### Properties
+Pauses queue processing. Running tasks continue, but no new tasks start.
 
-#### `info: TaskInfo` (readonly)
+#### `resumeQueue(): void`
 
-Current task information including status, timing, and metadata.
+Resumes queue processing after pause.
 
-### Methods
+#### `clearQueue(): void`
 
-#### `write(input: string): void`
+Removes all pending tasks from the queue. Does not affect running tasks.
 
-Sends data to the process stdin.
+#### `isQueuePaused(): boolean`
 
-#### `terminate(signal?: NodeJS.Signals): void`
+Returns whether the queue is currently paused.
 
-Manually terminates the process.
+#### `isQueueEmpty(): boolean`
 
-### Events
+Returns whether the queue has no pending tasks.
 
-#### `'exit'`
+#### `isQueueIdle(): boolean`
 
-Emitted when the process exits (naturally, killed, or timeout).
+Returns whether the queue has no pending or running tasks.
 
-**Callback:** `(info: TaskInfo) => void`
+#### `getQueueStats(): QueueStats`
+
+Returns detailed queue statistics.
+
+**Returns:**
+```typescript
+interface QueueStats {
+  size: number;               // Pending tasks in queue
+  pending: number;            // Running tasks
+  paused: boolean;            // Queue pause state
+  totalAdded: number;         // Total tasks added
+  totalCompleted: number;     // Total tasks completed
+  totalFailed: number;        // Total tasks failed
+  totalCancelled: number;     // Total tasks cancelled
+  averageWaitTime: number;    // Average queue wait time (ms)
+  averageRunTime: number;     // Average task run time (ms)
+  throughput: number;         // Tasks per second
+  utilization: number;        // Queue utilization (0-100)
+}
+```
+
+#### `setQueueConcurrency(concurrency: number): void`
+
+Dynamically adjusts queue concurrency limit.
+
+**Parameters:**
+- `concurrency: number` - New concurrency limit (use Infinity for unlimited)
+
+#### `getQueuedTasks(): TaskInfo[]`
+
+Returns all tasks currently waiting in queue.
+
+#### `getRunningTasks(): TaskInfo[]`
+
+Returns all tasks currently running.
+
+### Async Queue API
+
+#### `startAndWait(opts: ProcessTaskOpts): Promise<ExitResult>`
+
+Starts a task and waits for completion.
+
+**Returns:**
+```typescript
+interface ExitResult {
+  taskInfo: TaskInfo;
+  exitCode: number | null;
+  signal: string | null;
+  duration: number;
+  stdout: string;
+  stderr: string;
+}
+```
+
+#### `startAllAsync(optsList: ProcessTaskOpts[]): Promise<TaskInfo[]>`
+
+Starts multiple tasks and returns when all are at least started.
+
+#### `waitForTask(taskId: string): Promise<ExitResult>`
+
+Waits for a specific task to complete.
+
+#### `waitForAll(taskIds?: string[]): Promise<ExitResult[]>`
+
+Waits for multiple tasks to complete. If no IDs provided, waits for all tasks.
+
+#### `waitForQueueEmpty(): Promise<void>`
+
+Waits until the queue has no pending tasks.
+
+#### `waitForQueueIdle(): Promise<void>`
+
+Waits until the queue has no pending or running tasks.
+
+### Task Handle API
+
+#### `startWithHandle(opts: ProcessTaskOpts): TaskHandle`
+
+Returns a TaskHandle for advanced control.
+
+```typescript
+const handle = manager.startWithHandle({
+  cmd: ['long-process.js'],
+  logDir: './logs'
+});
+
+// Wait for task to start if queued
+await handle.waitToStart();
+
+// Cancel if still queued
+handle.cancel();
+
+// Wait for completion
+const result = await handle.onCompleted();
+```
+
+### Hook Management
+
+#### `registerGlobalHooks(hooks: HookCallbacks): void`
+
+Registers global hooks that apply to all tasks.
+
+#### `clearGlobalHooks(): void`
+
+Removes all global hooks.
+
+**Hook Types:**
+- `onSuccess` - Task exits with code 0
+- `onFailure` - Task exits with non-zero code
+- `onTimeout` - Task killed due to idle timeout
+- `onTerminated` - Task killed manually
+- `onTaskStartFail` - Task failed to start
+- `onChange` - Task status changes
 
 ## Types
 
@@ -135,45 +268,84 @@ Emitted when the process exits (naturally, killed, or timeout).
 
 ```typescript
 interface TaskInfo {
-  id: string;           // UUID
-  cmd: string[];        // Command and arguments
-  pid: number;          // Process ID
-  startedAt: number;    // Start timestamp (epoch ms)
-  status: TaskStatus;   // Current status
-  logFile: string;      // Path to log file
-  tags?: string[];      // Optional tags for grouping
-  exitedAt?: number;    // Exit timestamp (epoch ms)
-  exitCode?: number;    // Exit code
+  id: string;              // UUID
+  cmd: string[];           // Command and arguments
+  pid: number;             // Process ID (-1 if not started)
+  startedAt: number;       // Start timestamp (epoch ms)
+  status: TaskStatus;      // Current status
+  logFile: string;         // Path to log file
+  tags?: string[];         // Optional tags
+  exitedAt?: number;       // Exit timestamp
+  exitCode?: number | null;// Exit code
+  startError?: Error;      // Error if failed to start
+  metadata?: Record<string, unknown>; // Task metadata
 }
 ```
 
 ### TaskStatus
 
 ```typescript
-type TaskStatus = 'running' | 'exited' | 'killed' | 'timeout';
+type TaskStatus = 'running' | 'exited' | 'killed' | 'timeout' | 'start-failed' | 'queued';
 ```
 
-### ProcessTaskOpts
+### ProcessManagerOptions
 
 ```typescript
-interface ProcessTaskOpts {
-  cmd: string[];
-  logDir: string;
-  idleTimeoutMs?: number;
-  tags?: string[];
+interface ProcessManagerOptions {
+  defaultLogDir?: string;
+  queue?: QueueOptions;
+  hooks?: HookCallbacks;
 }
+```
+
+### QueueOptions
+
+```typescript
+interface QueueOptions {
+  concurrency?: number;      // Max concurrent tasks (default: Infinity)
+  autoStart?: boolean;       // Auto-start queued tasks (default: true)
+  interval?: number;         // Rate limit interval in ms
+  intervalCap?: number;      // Max tasks per interval
+  timeout?: number;          // Default task timeout
+  throwOnTimeout?: boolean;  // Throw on timeout (default: true)
+}
+```
+
+### TaskQueueOptions
+
+```typescript
+interface TaskQueueOptions {
+  immediate?: boolean;       // Skip queue, start immediately
+  priority?: number;         // Task priority (higher = first)
+  timeout?: number;          // Task-specific timeout
+  signal?: AbortSignal;      // For cancellation
+}
+```
+
+### Priority Constants
+
+```typescript
+const PRIORITY = {
+  CRITICAL: 1000,
+  HIGH: 100,
+  NORMAL: 0,
+  LOW: -100,
+  BATCH: -1000
+};
 ```
 
 ## Error Handling
 
 - **Invalid Task ID**: Throws descriptive error with task ID
-- **Missing Command**: CLI shows usage and exits with code 1
-- **File System Errors**: Propagated from underlying fs operations
-- **Process Spawn Errors**: Handled by Bun subprocess API
+- **Queue at Capacity**: Task is queued with status 'queued'
+- **Process Spawn Errors**: Captured in TaskInfo.startError
+- **Timeout Errors**: Task killed with status 'timeout'
 
-## Logging
+## Backward Compatibility
 
-- Each task gets a unique log file: `{logDir}/{uuid}.log`
-- Both stdout and stderr are captured
-- Log files are append-only and closed on process exit
-- File names use task UUID for easy correlation
+The default behavior (no queue configuration) maintains v1.x compatibility:
+- All tasks start immediately
+- No 'queued' status appears
+- Unlimited concurrency
+- Synchronous start() method
+- Sub-100ms latency

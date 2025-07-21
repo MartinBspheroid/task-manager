@@ -1,0 +1,182 @@
+{
+  "tasks": [
+    {
+      "id": "001",
+      "name": "revert-queue-implementation",
+      "title": "Revert Queue Implementation",
+      "status": "completed",
+      "phase": "stabilization",
+      "description": "Revert the flawed queue implementation while preserving valuable insights",
+      "dependencies": [],
+      "completedAt": "2025-01-20T18:30:00Z"
+    },
+    {
+      "id": "002", 
+      "name": "test-synchronization-utilities",
+      "title": "Test Synchronization Utilities",
+      "status": "completed",
+      "phase": "stabilization",
+      "description": "Create proper test utilities for synchronizing with async operations",
+      "dependencies": ["001"],
+      "completedAt": "2025-01-20T19:15:00Z"
+    },
+    {
+      "id": "003",
+      "name": "document-current-behavior", 
+      "title": "Document Current Behavior",
+      "status": "completed",
+      "phase": "stabilization",
+      "description": "Create comprehensive documentation of current ProcessManager behavior",
+      "dependencies": ["001", "002"],
+      "completedAt": "2025-01-20T20:45:00Z"
+    },
+    {
+      "id": "004",
+      "name": "design-queue-configuration-api",
+      "title": "Design Queue Configuration API", 
+      "status": "completed",
+      "phase": "design",
+      "description": "Design flexible, intuitive API for configuring process queue behavior",
+      "dependencies": ["003"],
+      "completedAt": "2025-01-20T21:30:00Z"
+    },
+    {
+      "id": "005",
+      "name": "create-abstraction-interfaces",
+      "title": "Create Abstraction Interfaces",
+      "status": "completed", 
+      "phase": "design",
+      "description": "Define clear interfaces that separate queue management from process management",
+      "dependencies": ["004"],
+      "completedAt": "2025-01-20T22:15:00Z"
+    },
+    {
+      "id": "006",
+      "name": "plan-backward-compatibility",
+      "title": "Plan Backward Compatibility",
+      "status": "completed",
+      "phase": "design", 
+      "description": "Ensure queue functionality doesn't break existing code",
+      "dependencies": ["003", "004", "005"],
+      "completedAt": "2025-01-20T23:00:00Z"
+    },
+    {
+      "id": "007",
+      "name": "implement-configurable-queue",
+      "title": "Implement Configurable Queue",
+      "status": "completed",
+      "phase": "core-implementation",
+      "description": "Implement properly configurable queue with real concurrency control",
+      "dependencies": ["001", "004", "005", "006"],
+      "completedAt": "2025-01-20T23:45:00Z"
+    },
+    {
+      "id": "008", 
+      "name": "add-synchronous-immediate-start",
+      "title": "Add Synchronous Immediate-Start Mode",
+      "status": "completed",
+      "phase": "core-implementation",
+      "description": "Ensure tasks can bypass queue and start immediately when requested",
+      "dependencies": ["007"],
+      "completedAt": "2025-01-21T00:00:00Z"
+    },
+    {
+      "id": "009",
+      "name": "create-async-queue-aware-api", 
+      "title": "Create Async Queue-Aware API",
+      "status": "completed",
+      "phase": "core-implementation",
+      "description": "Provide proper async API that works naturally with queuing",
+      "dependencies": ["007", "008"],
+      "completedAt": "2025-01-21T00:30:00Z"
+    },
+    {
+      "id": "010",
+      "name": "implement-queue-management",
+      "title": "Implement Queue Management Methods", 
+      "status": "pending",
+      "phase": "core-implementation",
+      "description": "Provide comprehensive queue management capabilities",
+      "dependencies": ["007", "008", "009"],
+      "completedAt": null
+    },
+    {
+      "id": "011",
+      "name": "add-priority-support",
+      "title": "Add Priority Support",
+      "status": "pending",
+      "phase": "advanced-features",
+      "description": "Implement task priority system with dynamic adjustment",
+      "dependencies": ["007"],
+      "completedAt": null
+    },
+    {
+      "id": "012", 
+      "name": "implement-pause-resume",
+      "title": "Implement Pause/Resume",
+      "status": "completed",
+      "phase": "advanced-features", 
+      "description": "Add queue pause/resume functionality for graceful management",
+      "dependencies": ["007"],
+      "completedAt": "2025-01-21T01:15:00Z"
+    },
+    {
+      "id": "015",
+      "name": "comprehensive-testing",
+      "title": "Comprehensive Testing",
+      "status": "pending",
+      "phase": "testing-documentation",
+      "description": "Create complete test suite covering all queue functionality",
+      "dependencies": ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012"],
+      "completedAt": null
+    },
+    {
+      "id": "016",
+      "name": "update-documentation", 
+      "title": "Update Documentation",
+      "status": "pending",
+      "phase": "testing-documentation",
+      "description": "Update all documentation to reflect new queue functionality", 
+      "dependencies": ["015"],
+      "completedAt": null
+    },
+    {
+      "id": "017",
+      "name": "migration-guide",
+      "title": "Create Migration Guide",
+      "status": "pending",
+      "phase": "testing-documentation",
+      "description": "Provide clear guidance for users upgrading to queue-enabled version",
+      "dependencies": ["016"], 
+      "completedAt": null
+    }
+  ],
+  "currentTask": "010",
+  "phases": {
+    "stabilization": {
+      "name": "Stabilization", 
+      "description": "Revert broken implementation and add proper test infrastructure",
+      "tasks": ["001", "002", "003"]
+    },
+    "design": {
+      "name": "Design",
+      "description": "Design queue configuration API and abstraction interfaces",
+      "tasks": ["004", "005", "006"]
+    },
+    "core-implementation": {
+      "name": "Core Implementation", 
+      "description": "Implement configurable queue and core queue-aware APIs",
+      "tasks": ["007", "008", "009", "010"]
+    },
+    "advanced-features": {
+      "name": "Advanced Features",
+      "description": "Add priority support and advanced queue management",
+      "tasks": ["011", "012"]
+    },
+    "testing-documentation": {
+      "name": "Testing & Documentation",
+      "description": "Comprehensive testing and documentation updates", 
+      "tasks": ["015", "016", "017"]
+    }
+  }
+}

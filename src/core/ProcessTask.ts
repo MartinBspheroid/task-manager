@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { spawn } from 'bun';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
-import type { TaskInfo, TaskStatus, HookCallbacks } from './types';
+import type { TaskInfo, HookCallbacks, TaskQueueOptions } from './types';
 import { HookManager } from './HookManager';
 
 export interface ProcessTaskOpts {
@@ -13,6 +13,8 @@ export interface ProcessTaskOpts {
   tags?: string[];         // optional tags for grouping
   hooks?: HookCallbacks;   // hook callbacks
   hookManager?: HookManager; // optional custom hook manager
+  queue?: TaskQueueOptions;  // per-task queue options
+  delayStart?: boolean;    // if true, don't start process immediately
 }
 
 export class ProcessTask extends EventEmitter {
@@ -35,17 +37,40 @@ export class ProcessTask extends EventEmitter {
       id,
       cmd: opts.cmd,
       pid: -1,
-      startedAt: Date.now(),
-      status: 'running',
+      startedAt: opts.delayStart ? 0 : Date.now(),
+      status: opts.delayStart ? 'queued' : 'running',
       logFile,
       tags: opts.tags,
     };
 
+    if (!opts.delayStart) {
+      try {
+        // Initialize the process immediately
+        this.#initializeProcess(opts);
+      } catch (error) {
+        // Handle startup failure
+        this.#handleStartupFailure(error as Error);
+      }
+    }
+  }
+
+  /**
+   * Start a delayed process (used with queue integration)
+   */
+  startDelayedProcess(opts: ProcessTaskOpts): void {
+    if (this.info.status !== 'queued') {
+      throw new Error('Can only start delayed process when status is queued');
+    }
+    
+    this.info.status = 'running';
+    this.info.startedAt = Date.now();
+    
+    // Emit started event for TaskHandle and other listeners
+    this.emit('started', this.info);
+    
     try {
-      // Initialize the process
       this.#initializeProcess(opts);
     } catch (error) {
-      // Handle startup failure
       this.#handleStartupFailure(error as Error);
     }
   }
@@ -55,59 +80,54 @@ export class ProcessTask extends EventEmitter {
     this.#logStream = fs.createWriteStream(this.info.logFile, { flags: 'a' });
 
 
-    try {
-      this.#proc = spawn({
-        cmd: opts.cmd,
-        stdout: 'pipe',
-        stderr: 'pipe',
-        stdin: 'pipe',
-      });
+    this.#proc = spawn({
+      cmd: opts.cmd,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      stdin: 'pipe',
+    });
 
-      this.info.pid = this.#proc.pid;
+    this.info.pid = this.#proc.pid;
 
-      const resetIdle = () => {
-        if (this.#idleTimer) {
-          clearTimeout(this.#idleTimer);
-        }
-        this.#idleTimer = setTimeout(() => this.#timeoutKill(), opts.idleTimeoutMs ?? 5 * 60_000);
-      };
-      resetIdle();
-
-      // pipe + idle watchdog
-      const pipe = (stream: ReadableStream) =>
-        stream.pipeTo(
-          new WritableStream({
-            write: (chunk) => {
-              this.#logStream?.write(chunk);
-              resetIdle();
-              
-              // Trigger onChange hooks if they exist
-              if (this.#hooks.onChange && this.#hooks.onChange.length > 0) {
-                const content = typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk);
-                this.#hookManager.executeOnChange(this.info, content, this.#hooks.onChange);
-              }
-            },
-          }),
-        );
-
-      if (this.#proc.stdout && typeof this.#proc.stdout !== 'number') {
-        void pipe(this.#proc.stdout);
+    const resetIdle = () => {
+      if (this.#idleTimer) {
+        clearTimeout(this.#idleTimer);
       }
-      if (this.#proc.stderr && typeof this.#proc.stderr !== 'number') {
-        void pipe(this.#proc.stderr);
-      }
+      this.#idleTimer = setTimeout(() => this.#timeoutKill(), opts.idleTimeoutMs ?? 5 * 60_000);
+    };
+    resetIdle();
 
-      // handle exit
-      this.#proc.exited.then((code) => {
-        this.#handleProcessExit(code);
-      }).catch((error) => {
-        console.error(`Process exit error for ${this.info.id}:`, error);
-        this.#handleStartupFailure(error);
-      });
+    // pipe + idle watchdog
+    const pipe = (stream: ReadableStream) =>
+      stream.pipeTo(
+        new WritableStream({
+          write: (chunk) => {
+            this.#logStream?.write(chunk);
+            resetIdle();
+            
+            // Trigger onChange hooks if they exist
+            if (this.#hooks.onChange && this.#hooks.onChange.length > 0) {
+              const content = typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk);
+              this.#hookManager.executeOnChange(this.info, content, this.#hooks.onChange);
+            }
+          },
+        }),
+      );
 
-    } catch (error) {
-      throw error; // Re-throw to be caught by constructor
+    if (this.#proc.stdout && typeof this.#proc.stdout !== 'number') {
+      void pipe(this.#proc.stdout);
     }
+    if (this.#proc.stderr && typeof this.#proc.stderr !== 'number') {
+      void pipe(this.#proc.stderr);
+    }
+
+    // handle exit
+    this.#proc.exited.then((code) => {
+      this.#handleProcessExit(code);
+    }).catch((error) => {
+      console.error(`Process exit error for ${this.info.id}:`, error);
+      this.#handleStartupFailure(error);
+    });
   }
 
   #handleStartupFailure(error: Error): void {

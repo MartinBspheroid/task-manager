@@ -2,6 +2,7 @@
 import { ProcessManager } from '../core/ProcessManager';
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'fs';
+import { waitForRunningCount, waitForTaskCount } from './utils/test-helpers';
 
 test('killByTag() terminates only processes with matching tag', async () => {
   // Ensure logs directory exists
@@ -47,7 +48,7 @@ test('killByTag() terminates only processes with matching tag', async () => {
   expect(killedIds).not.toContain(noTagTask.id);
   
   // Wait for processes to be killed
-  await new Promise((r) => setTimeout(r, 100));
+  await waitForRunningCount(manager, 2);
   
   // Verify only 2 tasks are still running
   const stillRunning = manager.listRunning();
@@ -59,7 +60,7 @@ test('killByTag() terminates only processes with matching tag', async () => {
   manager.killAll();
 });
 
-test('killByTag() returns empty array when no processes have the tag', () => {
+test('killByTag() returns empty array when no processes have the tag', async () => {
   // Ensure logs directory exists
   mkdirSync('logs', { recursive: true });
   
@@ -118,7 +119,7 @@ test('killByTag() works with partial tag matches', async () => {
   expect(killedIds).not.toContain(task3.id);
   
   // Wait for processes to be killed
-  await new Promise((r) => setTimeout(r, 100));
+  await waitForRunningCount(manager, 1);
   
   // Verify only development task is still running
   const stillRunning = manager.listRunning();
@@ -150,7 +151,9 @@ test('killByTag() only affects running processes', async () => {
   });
   
   // Wait for quick process to exit
-  await new Promise((r) => setTimeout(r, 100));
+  await waitForTaskCount(manager, tasks => 
+    tasks.filter(t => t.status === 'exited').length === 1
+  );
   
   // Kill by tag
   const killedIds = manager.killByTag('test');

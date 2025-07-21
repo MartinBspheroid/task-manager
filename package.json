@@ -2,6 +2,11 @@
   "name": "task-manager",
   "module": "index.ts",
   "type": "module",
+  "scripts": {
+    "format": "bunx oxlint --format='github'",
+    "lint": "bunx oxlint",
+    "typecheck": "bunx tsc --noEmit"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/chokidar": "^2.1.7"
@@ -10,6 +15,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "chokidar": "^4.0.3"
+    "chokidar": "^4.0.3",
+    "glob": "^11.0.3",
+    "p-queue": "^8.1.0"
   }
 }
