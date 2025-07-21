@@ -5,13 +5,14 @@ import { ProcessManager } from '../core/ProcessManager';
 import { ProcessQueue } from '../core/ProcessQueue';
 import { PRIORITY } from '../core/types';
 import { mkdirSync } from 'fs';
+import { TEST_LOG_DIR } from './utils/test-helpers';
 
 function createTestManager() {
   // Ensure test-logs directory exists
-  mkdirSync('test-logs', { recursive: true });
+  mkdirSync(TEST_LOG_DIR, { recursive: true });
   
   return new ProcessManager({
-    defaultLogDir: 'test-logs',
+    defaultLogDir: TEST_LOG_DIR,
     queue: { 
       concurrency: 1, // Limit to ensure queueing
       emitQueueEvents: true
@@ -178,19 +179,19 @@ describe('Task 011: Priority Support', () => {
       // Start a blocking task
       const blocker = manager.start({ 
         cmd: ['sleep', '0.1'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       // Add tasks with different priorities
       const task1 = manager.start({ 
         cmd: ['echo', 'low'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.LOW, id: 'task1' }
       });
       
       const task2 = manager.start({ 
         cmd: ['echo', 'normal'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.NORMAL, id: 'task2' }
       });
       
@@ -219,7 +220,7 @@ describe('Task 011: Priority Support', () => {
       // Start a task that will run immediately
       const task = manager.start({ 
         cmd: ['sleep', '0.1'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       // Wait a moment for task to start running
@@ -239,25 +240,25 @@ describe('Task 011: Priority Support', () => {
       // Start blocking task
       const blocker = manager.start({ 
         cmd: ['sleep', '0.2'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       // Add tasks with different priorities
       manager.start({ 
         cmd: ['echo', 'low'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.LOW, id: 'low-task' }
       });
       
       manager.start({ 
         cmd: ['echo', 'high'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.HIGH, id: 'high-task' }
       });
       
       manager.start({ 
         cmd: ['echo', 'normal'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.NORMAL, id: 'normal-task' }
       });
       
@@ -288,31 +289,31 @@ describe('Task 011: Priority Support', () => {
       // Start blocking task
       const blocker = manager.start({ 
         cmd: ['sleep', '0.1'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       // Add tasks with different priorities
       manager.start({ 
         cmd: ['echo', 'high1'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.HIGH }
       });
       
       manager.start({ 
         cmd: ['echo', 'high2'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.HIGH }
       });
       
       manager.start({ 
         cmd: ['echo', 'normal'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.NORMAL }
       });
       
       manager.start({ 
         cmd: ['echo', 'low'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.LOW }
       });
       
@@ -338,7 +339,7 @@ describe('Task 011: Priority Support', () => {
       // Start a long-running blocking task to ensure other tasks queue up
       const blockerPromise = manager.startAndWait({ 
         cmd: ['sleep', '0.2'], // Longer blocking task
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       }).then(() => executionOrder.push('blocker'));
       
       // Wait a moment to ensure blocker is running
@@ -347,19 +348,19 @@ describe('Task 011: Priority Support', () => {
       // Add tasks with different priorities while blocker is running
       const lowTask = manager.startAndWait({ 
         cmd: ['echo', 'low'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.LOW }
       }).then(() => executionOrder.push('low'));
       
       const highTask = manager.startAndWait({ 
         cmd: ['echo', 'high'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.HIGH }
       }).then(() => executionOrder.push('high'));
       
       const normalTask = manager.startAndWait({ 
         cmd: ['echo', 'normal'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: PRIORITY.NORMAL }
       }).then(() => executionOrder.push('normal'));
       
@@ -378,19 +379,19 @@ describe('Task 011: Priority Support', () => {
       const promises = [
         manager.startAndWait({ 
           cmd: ['echo', 'immediate'], 
-          logDir: 'test-logs',
+          logDir: TEST_LOG_DIR,
           queue: { immediate: true, priority: PRIORITY.LOW }
         }).then(() => results.push('immediate')),
         
         manager.startAndWait({ 
           cmd: ['echo', 'high'], 
-          logDir: 'test-logs',
+          logDir: TEST_LOG_DIR,
           queue: { priority: PRIORITY.HIGH }
         }).then(() => results.push('high')),
         
         manager.startAndWait({ 
           cmd: ['echo', 'normal'], 
-          logDir: 'test-logs',
+          logDir: TEST_LOG_DIR,
           queue: { priority: PRIORITY.NORMAL }
         }).then(() => results.push('normal'))
       ];

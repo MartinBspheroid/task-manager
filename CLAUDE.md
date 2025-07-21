@@ -16,6 +16,7 @@ bun install
 # Run tests
 bun test
 
+
 # Run the CLI tool
 bun run src/cli/start.ts -- <command> [args]
 
@@ -56,6 +57,7 @@ Tests use Bun's built-in test runner (`bun:test`). Test files follow the pattern
 - **Bulk operations**: `killAll()` functionality
 - **Tag system**: Tag assignment, persistence, and tag-based killing
 - **Edge cases**: Empty states, mixed task statuses, selective operations
+
 
 ### TypeScript Configuration
 

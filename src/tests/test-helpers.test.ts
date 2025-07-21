@@ -8,13 +8,14 @@ import {
   createTestManager,
   EventWaiter,
   waitForRunningCount,
-  cleanupTestLogs
+  cleanupTestLogs,
+  TEST_LOG_DIR
 } from './utils/test-helpers';
 
 beforeEach(() => {
   // Clean up any existing test logs
   cleanupTestLogs();
-  mkdirSync('test-logs', { recursive: true });
+  mkdirSync(TEST_LOG_DIR, { recursive: true });
 });
 
 afterEach(() => {
@@ -26,7 +27,7 @@ test('waitForStatus waits for task to reach target status', async () => {
   
   const task = manager.start({
     cmd: ['echo', 'test'],
-    logDir: 'test-logs'
+    logDir: TEST_LOG_DIR
   });
   
   // Should start as running and then exit
@@ -44,7 +45,7 @@ test('waitForStatus times out when condition not met', async () => {
   
   const task = manager.start({
     cmd: ['sleep', '10'],
-    logDir: 'test-logs'
+    logDir: TEST_LOG_DIR
   });
   
   // Should timeout trying to wait for 'exited' status
@@ -60,9 +61,9 @@ test('waitForTaskCount waits for predicate to be true', async () => {
   const manager = createTestManager();
   
   // Start multiple tasks
-  const task1 = manager.start({ cmd: ['sleep', '5'], logDir: 'test-logs' });
-  const task2 = manager.start({ cmd: ['sleep', '5'], logDir: 'test-logs' });
-  const task3 = manager.start({ cmd: ['echo', 'quick'], logDir: 'test-logs' });
+  const task1 = manager.start({ cmd: ['sleep', '5'], logDir: TEST_LOG_DIR });
+  const task2 = manager.start({ cmd: ['sleep', '5'], logDir: TEST_LOG_DIR });
+  const task3 = manager.start({ cmd: ['echo', 'quick'], logDir: TEST_LOG_DIR });
   
   // Wait for 2 running tasks (after quick one exits)
   await waitForTaskCount(
@@ -81,8 +82,8 @@ test('waitForTaskCount waits for predicate to be true', async () => {
 test('waitForRunningCount convenience function works', async () => {
   const manager = createTestManager();
   
-  manager.start({ cmd: ['sleep', '5'], logDir: 'test-logs' });
-  manager.start({ cmd: ['sleep', '5'], logDir: 'test-logs' });
+  manager.start({ cmd: ['sleep', '5'], logDir: TEST_LOG_DIR });
+  manager.start({ cmd: ['sleep', '5'], logDir: TEST_LOG_DIR });
   
   await waitForRunningCount(manager, 2, 1000);
   
@@ -92,7 +93,7 @@ test('waitForRunningCount convenience function works', async () => {
 });
 
 test('waitForFileContent waits for file content condition', async () => {
-  const testFile = 'test-logs/content-test.txt';
+  const testFile = `${TEST_LOG_DIR}/content-test.txt`;
   
   // Start with empty file
   writeFileSync(testFile, '');
@@ -116,7 +117,7 @@ test('waitForFileContent waits for file content condition', async () => {
 });
 
 test('waitForFileContent times out when condition not met', async () => {
-  const testFile = 'test-logs/timeout-test.txt';
+  const testFile = `${TEST_LOG_DIR}/timeout-test.txt`;
   writeFileSync(testFile, 'wrong content');
   
   await expect(
@@ -129,7 +130,7 @@ test('waitForFileContent times out when condition not met', async () => {
 });
 
 test('waitForFileContent handles non-existent files', async () => {
-  const testFile = 'test-logs/nonexistent.txt';
+  const testFile = `${TEST_LOG_DIR}/nonexistent.txt`;
   
   // Start waiting
   const waitPromise = waitForFileContent(
@@ -172,7 +173,7 @@ test('createTestManager creates working manager', () => {
   
   const task = manager.start({
     cmd: ['echo', 'test'],
-    logDir: 'test-logs'
+    logDir: TEST_LOG_DIR
   });
   
   expect(task.id).toBeTruthy();
@@ -184,7 +185,7 @@ test('performance: utilities use efficient polling', async () => {
   
   const task = manager.start({
     cmd: ['echo', 'performance test'],
-    logDir: 'test-logs'
+    logDir: TEST_LOG_DIR
   });
   
   const start = Date.now();

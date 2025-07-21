@@ -26,48 +26,41 @@ export class TaskHandle {
   }
   
   async onStarted(): Promise<void> {
-    // For ProcessTask, we don't have a separate 'started' event
-    // A task that's not 'start-failed' or 'queued' is considered started
+    // If already running or failed, resolve/reject immediately
     if (this.#task.info.status === 'running') return;
     if (this.#task.info.status === 'start-failed') {
       throw this.#task.info.startError || new Error('Task failed to start');
     }
     
-    // For queued tasks, we need to wait for the status to change
+    // For queued tasks, listen for the started event
     return new Promise((resolve, reject) => {
-      const checkStatus = () => {
-        if (this.#task.info.status === 'running') {
-          resolve();
-        } else if (this.#task.info.status === 'start-failed') {
-          reject(this.#task.info.startError || new Error('Task failed to start'));
-        }
-        // Continue waiting for other statuses
-      };
-      
-      // Check every 50ms
-      const interval = setInterval(checkStatus, 50);
-      
-      // Set a reasonable timeout
-      const timeout = setTimeout(() => {
-        clearInterval(interval);
-        reject(new Error('Timeout waiting for task to start'));
-      }, 10000);
-      
       const cleanup = () => {
-        clearInterval(interval);
-        clearTimeout(timeout);
+        this.#task.off('started', onStarted);
+        this.#task.off('start-failed', onError);
       };
       
-      // Listen for start-failed events
+      const onStarted = () => {
+        cleanup();
+        resolve();
+      };
+      
       const onError = () => {
         cleanup();
         reject(this.#task.info.startError || new Error('Task failed to start'));
       };
       
+      // Listen for events
+      this.#task.once('started', onStarted);
       this.#task.once('start-failed', onError);
       
-      // Initial check
-      checkStatus();
+      // Check current status one more time in case we missed the event
+      if (this.#task.info.status === 'running') {
+        cleanup();
+        resolve();
+      } else if (this.#task.info.status === 'start-failed') {
+        cleanup();
+        reject(this.#task.info.startError || new Error('Task failed to start'));
+      }
     });
   }
   

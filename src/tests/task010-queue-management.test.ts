@@ -4,13 +4,14 @@ import { test, expect, describe } from 'bun:test';
 import { ProcessManager } from '../core/ProcessManager';
 import type { TaskInfo } from '../core/types';
 import { mkdirSync } from 'fs';
+import { TEST_LOG_DIR } from './utils/test-helpers';
 
 function createTestManager() {
   // Ensure test-logs directory exists
-  mkdirSync('test-logs', { recursive: true });
+  mkdirSync(TEST_LOG_DIR, { recursive: true });
   
   return new ProcessManager({
-    defaultLogDir: 'test-logs',
+    defaultLogDir: TEST_LOG_DIR,
     queue: { 
       concurrency: 2,
       emitQueueEvents: true
@@ -26,19 +27,19 @@ describe('Task 010: Enhanced Queue Management', () => {
       // Start some tasks with different tags
       const task1 = manager.start({ 
         cmd: ['sleep', '10'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         tags: ['production'],
         queue: { immediate: false }
       });
       const task2 = manager.start({ 
         cmd: ['sleep', '10'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         tags: ['development'],
         queue: { immediate: false }
       });
       const task3 = manager.start({ 
         cmd: ['sleep', '10'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         tags: ['production'],
         queue: { immediate: false }
       });
@@ -59,7 +60,7 @@ describe('Task 010: Enhanced Queue Management', () => {
       
       const task = manager.start({ 
         cmd: ['sleep', '1'],
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { immediate: false, priority: 1 }
       });
       
@@ -74,9 +75,9 @@ describe('Task 010: Enhanced Queue Management', () => {
       manager.setConcurrency(1); // Limit concurrency to ensure queueing
       
       // Start some tasks - first will run, others will queue
-      manager.start({ cmd: ['sleep', '2'], logDir: 'test-logs', queue: { immediate: false } });
-      manager.start({ cmd: ['sleep', '1'], logDir: 'test-logs', queue: { immediate: false } });
-      manager.start({ cmd: ['sleep', '1'], logDir: 'test-logs', queue: { immediate: false } });
+      manager.start({ cmd: ['sleep', '2'], logDir: TEST_LOG_DIR, queue: { immediate: false } });
+      manager.start({ cmd: ['sleep', '1'], logDir: TEST_LOG_DIR, queue: { immediate: false } });
+      manager.start({ cmd: ['sleep', '1'], logDir: TEST_LOG_DIR, queue: { immediate: false } });
       
       // Wait a moment for queue to settle
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -94,8 +95,8 @@ describe('Task 010: Enhanced Queue Management', () => {
       const manager = createTestManager();
       
       // Start some tasks
-      manager.start({ cmd: ['sleep', '2'], logDir: 'test-logs' });
-      manager.start({ cmd: ['sleep', '2'], logDir: 'test-logs' });
+      manager.start({ cmd: ['sleep', '2'], logDir: TEST_LOG_DIR });
+      manager.start({ cmd: ['sleep', '2'], logDir: TEST_LOG_DIR });
       
       const runningTasks = manager.getRunningTasks();
       runningTasks.forEach(task => {
@@ -109,8 +110,8 @@ describe('Task 010: Enhanced Queue Management', () => {
       const manager = createTestManager();
       
       // Start some tasks to populate stats
-      manager.start({ cmd: ['echo', 'test1'], logDir: 'test-logs' });
-      manager.start({ cmd: ['echo', 'test2'], logDir: 'test-logs' });
+      manager.start({ cmd: ['echo', 'test1'], logDir: TEST_LOG_DIR });
+      manager.start({ cmd: ['echo', 'test2'], logDir: TEST_LOG_DIR });
       
       const stats = manager.getQueueStats();
       
@@ -139,7 +140,7 @@ describe('Task 010: Enhanced Queue Management', () => {
       const initialStats = manager.getQueueStats();
       
       // Start a simple task that will complete quickly
-      const task = manager.start({ cmd: ['echo', 'hello'], logDir: 'test-logs' });
+      const task = manager.start({ cmd: ['echo', 'hello'], logDir: TEST_LOG_DIR });
       
       // Wait for task to complete
       await manager.waitForTask(task.id);
@@ -186,7 +187,7 @@ describe('Task 010: Enhanced Queue Management', () => {
       manager.setConcurrency(1); // Limit to 1 concurrent task
       
       // Start a long-running task to fill the slot
-      manager.start({ cmd: ['sleep', '0.5'], logDir: 'test-logs' });
+      manager.start({ cmd: ['sleep', '0.5'], logDir: TEST_LOG_DIR });
       
       // Start the wait operation
       const waitPromise = manager.waitForAvailableSlot();
@@ -246,8 +247,8 @@ describe('Task 010: Enhanced Queue Management', () => {
       manager.setConcurrency(1);
       
       // Add tasks to queue
-      manager.start({ cmd: ['sleep', '10'], logDir: 'test-logs', queue: { immediate: false } });
-      manager.start({ cmd: ['sleep', '10'], logDir: 'test-logs', queue: { immediate: false } });
+      manager.start({ cmd: ['sleep', '10'], logDir: TEST_LOG_DIR, queue: { immediate: false } });
+      manager.start({ cmd: ['sleep', '10'], logDir: TEST_LOG_DIR, queue: { immediate: false } });
       
       const initialStats = manager.getQueueStats();
       expect(initialStats.size).toBeGreaterThan(0);
@@ -269,8 +270,8 @@ describe('Task 010: Enhanced Queue Management', () => {
       });
       
       // Start tasks and cancel them
-      const task1 = manager.start({ cmd: ['sleep', '10'], logDir: 'test-logs', queue: { immediate: false } });
-      const task2 = manager.start({ cmd: ['sleep', '10'], logDir: 'test-logs', queue: { immediate: false } });
+      const task1 = manager.start({ cmd: ['sleep', '10'], logDir: TEST_LOG_DIR, queue: { immediate: false } });
+      const task2 = manager.start({ cmd: ['sleep', '10'], logDir: TEST_LOG_DIR, queue: { immediate: false } });
       
       await manager.cancelTasks(() => true);
       
@@ -286,7 +287,7 @@ describe('Task 010: Enhanced Queue Management', () => {
       });
       
       // Start a task that will complete and trigger stats event
-      const task = manager.start({ cmd: ['echo', 'hello'], logDir: 'test-logs' });
+      const task = manager.start({ cmd: ['echo', 'hello'], logDir: TEST_LOG_DIR });
       await manager.waitForTask(task.id);
       
       expect(statsEventCount).toBeGreaterThan(0);
@@ -300,9 +301,9 @@ describe('Task 010: Enhanced Queue Management', () => {
       
       // Start multiple tasks
       const tasks = [
-        manager.start({ cmd: ['sleep', '0.1'], logDir: 'test-logs', tags: ['fast'] }),
-        manager.start({ cmd: ['sleep', '0.2'], logDir: 'test-logs', tags: ['slow'] }),
-        manager.start({ cmd: ['sleep', '0.1'], logDir: 'test-logs', tags: ['fast'] })
+        manager.start({ cmd: ['sleep', '0.1'], logDir: TEST_LOG_DIR, tags: ['fast'] }),
+        manager.start({ cmd: ['sleep', '0.2'], logDir: TEST_LOG_DIR, tags: ['slow'] }),
+        manager.start({ cmd: ['sleep', '0.1'], logDir: TEST_LOG_DIR, tags: ['fast'] })
       ];
       
       // Monitor initial state

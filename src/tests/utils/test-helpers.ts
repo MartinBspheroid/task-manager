@@ -2,7 +2,7 @@
 import { mkdirSync } from 'fs';
 import * as fs from 'fs';
 import { ProcessManager } from '../../core/ProcessManager';
-import type { TaskInfo, TaskStatus } from '../../core/types';
+import type { TaskInfo, TaskStatus, ProcessManagerOptions } from '../../core/types';
 
 /**
  * Wait for a specific task to reach a target status
@@ -20,6 +20,34 @@ export async function waitForStatus(
     await new Promise(r => setTimeout(r, 10));
   }
   throw new Error(`Timeout waiting for task ${taskId} to reach status ${status}`);
+}
+
+/**
+ * Shared test setup - handles log directory creation and cleanup
+ * Uses unique directory names to avoid conflicts in parallel testing
+ */
+export function setupTestEnvironment(): void {
+  const testDir = getTestLogDir();
+  cleanupTestLogs(testDir);
+  mkdirSync(testDir, { recursive: true });
+}
+
+/**
+ * Shared test teardown - cleans up test artifacts
+ */
+export function teardownTestEnvironment(): void {
+  const testDir = getTestLogDir();
+  cleanupTestLogs(testDir);
+}
+
+// Global test directory for this process
+export const TEST_LOG_DIR = `test-logs-${process.pid}`;
+
+/**
+ * Get unique test log directory for current test file
+ */
+export function getTestLogDir(): string {
+  return TEST_LOG_DIR;
 }
 
 /**
@@ -61,11 +89,37 @@ export async function waitForFileContent(
 
 /**
  * Create a ProcessManager configured for testing
+ * Automatically uses unique directory to avoid parallel test conflicts
  */
-export function createTestManager(): ProcessManager {
+export function createTestManager(options: ProcessManagerOptions = {}): ProcessManager {
+  const testDir = getTestLogDir();
   // Ensure test logs directory
-  mkdirSync('test-logs', { recursive: true });
-  return new ProcessManager();
+  mkdirSync(testDir, { recursive: true });
+  return new ProcessManager({
+    defaultLogDir: testDir,
+    ...options
+  });
+}
+
+/**
+ * Get the test log directory that should be used for the current test
+ * This maps 'test-logs' to the unique directory for parallel safety
+ */
+export function getTestLogDirFor(requestedDir: string): string {
+  if (requestedDir === 'test-logs') {
+    return getTestLogDir();
+  }
+  return requestedDir;
+}
+
+/**
+ * Create a ProcessManager with queue configuration for testing
+ */
+export function createQueuedTestManager(concurrency: number = 2, options: ProcessManagerOptions = {}): ProcessManager {
+  return createTestManager({
+    queue: { concurrency },
+    ...options
+  });
 }
 
 /**
@@ -141,14 +195,15 @@ export async function waitForAnyExit(
 }
 
 /**
- * Cleanup test logs directory
+ * Cleanup test logs directory - safe for concurrent access
  */
-export function cleanupTestLogs(): void {
+export function cleanupTestLogs(dir: string = 'test-logs'): void {
   try {
-    if (fs.existsSync('test-logs')) {
-      fs.rmSync('test-logs', { recursive: true, force: true });
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
-  } catch {
-    // Ignore cleanup errors
+  } catch (error) {
+    // Ignore cleanup errors - common in parallel testing
+    // Don't log to avoid noise in test output
   }
 }

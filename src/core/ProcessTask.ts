@@ -65,6 +65,9 @@ export class ProcessTask extends EventEmitter {
     this.info.status = 'running';
     this.info.startedAt = Date.now();
     
+    // Emit started event for TaskHandle and other listeners
+    this.emit('started', this.info);
+    
     try {
       this.#initializeProcess(opts);
     } catch (error) {

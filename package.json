@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "format": "bunx oxlint --format='github'",
-    "lint" : "bunx oxlint",
+    "lint": "bunx oxlint",
     "typecheck": "bunx tsc --noEmit"
   },
   "devDependencies": {
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "chokidar": "^4.0.3",
+    "glob": "^11.0.3",
     "p-queue": "^8.1.0"
   }
 }

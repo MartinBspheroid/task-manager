@@ -3,11 +3,11 @@
 import { expect, test, beforeEach, afterEach, describe } from 'bun:test';
 import { mkdirSync } from 'fs';
 import { ProcessManager } from '../core/ProcessManager';
-import { cleanupTestLogs, waitForStatus } from './utils/test-helpers';
+import { cleanupTestLogs, waitForStatus, TEST_LOG_DIR } from './utils/test-helpers';
 
 beforeEach(() => {
   cleanupTestLogs();
-  mkdirSync('test-logs', { recursive: true });
+  mkdirSync(TEST_LOG_DIR, { recursive: true });
 });
 
 afterEach(() => {
@@ -24,21 +24,21 @@ describe('Immediate Mode (Task 008)', () => {
       // Fill the queue
       const blocker = manager.start({ 
         cmd: ['sleep', '1'], 
-        logDir: 'test-logs' 
+        logDir: TEST_LOG_DIR 
       });
       expect(blocker.status).toBe('running');
       
       // Normal task should be queued
       const queued = manager.start({ 
         cmd: ['echo', 'queued'], 
-        logDir: 'test-logs' 
+        logDir: TEST_LOG_DIR 
       });
       expect(queued.status).toBe('queued');
       
       // Use startImmediate method
       const immediate = manager.startImmediate({ 
         cmd: ['echo', 'immediate'], 
-        logDir: 'test-logs' 
+        logDir: TEST_LOG_DIR 
       });
       expect(immediate.status).toBe('running');
       expect(immediate.pid).toBeGreaterThan(0);
@@ -51,7 +51,7 @@ describe('Immediate Mode (Task 008)', () => {
       
       const task = manager.startImmediate({
         cmd: ['echo', 'test'],
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       expect(task.status).toBe('running');
@@ -67,7 +67,7 @@ describe('Immediate Mode (Task 008)', () => {
       
       const task = manager.startImmediate({
         cmd: ['echo', 'test'],
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { 
           priority: 100, // Should be preserved but ignored due to immediate
           metadata: { type: 'critical' }
@@ -93,14 +93,14 @@ describe('Immediate Mode (Task 008)', () => {
       // Normal task should be queued
       const queued = manager.start({ 
         cmd: ['echo', 'queued'], 
-        logDir: 'test-logs' 
+        logDir: TEST_LOG_DIR 
       });
       expect(queued.status).toBe('queued');
       
       // Immediate task should run despite pause
       const immediate = manager.start({
         cmd: ['echo', 'immediate'],
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { immediate: true }
       });
       expect(immediate.status).toBe('running');
@@ -109,7 +109,7 @@ describe('Immediate Mode (Task 008)', () => {
       // startImmediate should also work
       const immediate2 = manager.startImmediate({
         cmd: ['echo', 'immediate2'],
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       expect(immediate2.status).toBe('running');
       expect(immediate2.pid).toBeGreaterThan(0);
@@ -128,7 +128,7 @@ describe('Immediate Mode (Task 008)', () => {
       
       const immediate = manager.startImmediate({
         cmd: ['echo', 'immediate-test'],
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       expect(immediate.status).toBe('running');
@@ -150,30 +150,30 @@ describe('Immediate Mode (Task 008)', () => {
       });
       
       // Start 2 normal tasks (at limit)
-      const task1 = manager.start({ cmd: ['sleep', '0.5'], logDir: 'test-logs' });
-      const task2 = manager.start({ cmd: ['sleep', '0.5'], logDir: 'test-logs' });
+      const task1 = manager.start({ cmd: ['sleep', '0.5'], logDir: TEST_LOG_DIR });
+      const task2 = manager.start({ cmd: ['sleep', '0.5'], logDir: TEST_LOG_DIR });
       
       expect(task1.status).toBe('running');
       expect(task2.status).toBe('running');
       
       // Third normal task should be queued
-      const task3 = manager.start({ cmd: ['sleep', '0.5'], logDir: 'test-logs' });
+      const task3 = manager.start({ cmd: ['sleep', '0.5'], logDir: TEST_LOG_DIR });
       expect(task3.status).toBe('queued');
       
       // Start 3 immediate tasks (exceed limit)
       const immediate1 = manager.start({
         cmd: ['echo', '1'],
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { immediate: true }
       });
       const immediate2 = manager.start({
         cmd: ['echo', '2'],
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { immediate: true }
       });
       const immediate3 = manager.start({
         cmd: ['echo', '3'],
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { immediate: true }
       });
       
@@ -199,7 +199,7 @@ describe('Immediate Mode (Task 008)', () => {
       const immediateTasks = Array.from({ length: 20 }, (_, i) => 
         manager.startImmediate({
           cmd: ['echo', `immediate-${i}`],
-          logDir: 'test-logs'
+          logDir: TEST_LOG_DIR
         })
       );
       
@@ -229,7 +229,7 @@ describe('Immediate Mode (Task 008)', () => {
         const start = process.hrtime.bigint();
         const task = manager.startImmediate({ 
           cmd: ['echo', i.toString()], 
-          logDir: 'test-logs' 
+          logDir: TEST_LOG_DIR 
         });
         const end = process.hrtime.bigint();
         
@@ -253,14 +253,14 @@ describe('Immediate Mode (Task 008)', () => {
       
       // Fill queue with many tasks
       for (let i = 0; i < 100; i++) {
-        manager.start({ cmd: ['echo', i.toString()], logDir: 'test-logs' });
+        manager.start({ cmd: ['echo', i.toString()], logDir: TEST_LOG_DIR });
       }
       
       // Immediate task should start instantly despite full queue
       const start = process.hrtime.bigint();
       const immediate = manager.startImmediate({
         cmd: ['echo', 'immediate'],
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       const end = process.hrtime.bigint();
       
@@ -280,9 +280,9 @@ describe('Immediate Mode (Task 008)', () => {
       });
       
       // Start some normal tasks
-      const normal1 = manager.start({ cmd: ['sleep', '0.2'], logDir: 'test-logs' });
-      const normal2 = manager.start({ cmd: ['sleep', '0.2'], logDir: 'test-logs' });
-      const queued = manager.start({ cmd: ['echo', 'queued'], logDir: 'test-logs' });
+      const normal1 = manager.start({ cmd: ['sleep', '0.2'], logDir: TEST_LOG_DIR });
+      const normal2 = manager.start({ cmd: ['sleep', '0.2'], logDir: TEST_LOG_DIR });
+      const queued = manager.start({ cmd: ['echo', 'queued'], logDir: TEST_LOG_DIR });
       
       expect(normal1.status).toBe('running');
       expect(normal2.status).toBe('running');
@@ -291,7 +291,7 @@ describe('Immediate Mode (Task 008)', () => {
       // Start immediate task
       const immediate = manager.startImmediate({
         cmd: ['echo', 'immediate'],
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       expect(immediate.status).toBe('running');
       
@@ -312,13 +312,13 @@ describe('Immediate Mode (Task 008)', () => {
       });
       
       // Fill queue
-      const blocker = manager.start({ cmd: ['sleep', '1'], logDir: 'test-logs' });
+      const blocker = manager.start({ cmd: ['sleep', '1'], logDir: TEST_LOG_DIR });
       expect(blocker.status).toBe('running');
       
       // Task with 'system' tag could be special (if implemented)
       const systemTask = manager.start({
         cmd: ['echo', 'system-task'],
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         tags: ['system'],
         queue: { immediate: true } // Explicitly immediate for now
       });
@@ -327,7 +327,7 @@ describe('Immediate Mode (Task 008)', () => {
       // Task with 'critical' tag
       const criticalTask = manager.start({
         cmd: ['echo', 'critical-task'],
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         tags: ['critical'],
         queue: { immediate: true }
       });
@@ -345,7 +345,7 @@ describe('Immediate Mode (Task 008)', () => {
       
       const failTask = manager.startImmediate({
         cmd: ['nonexistent-command-xyz123'],
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       expect(failTask.status).toBe('start-failed');
@@ -359,13 +359,13 @@ describe('Immediate Mode (Task 008)', () => {
       });
       
       // Add some normal tasks
-      const normal1 = manager.start({ cmd: ['echo', '1'], logDir: 'test-logs' });
-      const normal2 = manager.start({ cmd: ['echo', '2'], logDir: 'test-logs' });
+      const normal1 = manager.start({ cmd: ['echo', '1'], logDir: TEST_LOG_DIR });
+      const normal2 = manager.start({ cmd: ['echo', '2'], logDir: TEST_LOG_DIR });
       
       // Add immediate task with invalid command
       const failImmediate = manager.startImmediate({
         cmd: ['this-command-does-not-exist'],
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       expect(failImmediate.status).toBe('start-failed');
@@ -373,7 +373,7 @@ describe('Immediate Mode (Task 008)', () => {
       expect(normal2.status).toBe('running');
       
       // Queue should still be functional
-      const afterFail = manager.start({ cmd: ['echo', 'after'], logDir: 'test-logs' });
+      const afterFail = manager.start({ cmd: ['echo', 'after'], logDir: TEST_LOG_DIR });
       expect(afterFail.status).toMatch(/running|queued/);
       
       manager.killAll();
@@ -388,13 +388,13 @@ describe('Immediate Mode (Task 008)', () => {
       });
       
       // Fill queue
-      const blocker = manager.start({ cmd: ['sleep', '0.5'], logDir: 'test-logs' });
+      const blocker = manager.start({ cmd: ['sleep', '0.5'], logDir: TEST_LOG_DIR });
       
       // Async with immediate should complete quickly
       const start = Date.now();
       const immediate = await manager.startAsync({
         cmd: ['echo', 'immediate'],
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { immediate: true }
       });
       const elapsed = Date.now() - start;

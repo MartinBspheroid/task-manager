@@ -4,13 +4,14 @@ import { test, expect, describe } from 'bun:test';
 import { ProcessManager } from '../core/ProcessManager';
 import { ProcessQueue } from '../core/ProcessQueue';
 import { mkdirSync } from 'fs';
+import { TEST_LOG_DIR } from './utils/test-helpers';
 
 function createTestManager() {
   // Ensure test-logs directory exists
-  mkdirSync('test-logs', { recursive: true });
+  mkdirSync(TEST_LOG_DIR, { recursive: true });
   
   return new ProcessManager({
-    defaultLogDir: 'test-logs',
+    defaultLogDir: TEST_LOG_DIR,
     queue: { 
       concurrency: 1, // Limit to ensure queueing
       emitQueueEvents: true
@@ -125,7 +126,7 @@ describe('Task 012: Pause/Resume Functionality', () => {
       // Start long task to occupy the single slot
       const blocker = manager.start({ 
         cmd: ['sleep', '0.1'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       // Wait for task to start
@@ -135,7 +136,7 @@ describe('Task 012: Pause/Resume Functionality', () => {
       manager.pauseQueue();
       const queued = manager.start({ 
         cmd: ['echo', 'test'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       expect(queued.status).toBe('queued');
@@ -178,7 +179,7 @@ describe('Task 012: Pause/Resume Functionality', () => {
       // Start immediate task
       const immediateTask = manager.start({ 
         cmd: ['echo', 'immediate'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { immediate: true }
       });
       
@@ -247,7 +248,7 @@ describe('Task 012: Pause/Resume Functionality', () => {
       // Start blocking task
       const blocker = manager.start({ 
         cmd: ['sleep', '0.1'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       await waitForStatus(manager, blocker.id, 'running');
@@ -257,13 +258,13 @@ describe('Task 012: Pause/Resume Functionality', () => {
       
       const lowTask = manager.start({ 
         cmd: ['echo', 'low'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: -100 }
       });
       
       const highTask = manager.start({ 
         cmd: ['echo', 'high'], 
-        logDir: 'test-logs',
+        logDir: TEST_LOG_DIR,
         queue: { priority: 100 }
       });
       
@@ -289,7 +290,7 @@ describe('Task 012: Pause/Resume Functionality', () => {
       // Start blocking task
       const blocker = manager.start({ 
         cmd: ['sleep', '0.1'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       await waitForStatus(manager, blocker.id, 'running');
@@ -299,12 +300,12 @@ describe('Task 012: Pause/Resume Functionality', () => {
       
       manager.start({ 
         cmd: ['echo', 'test1'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       manager.start({ 
         cmd: ['echo', 'test2'], 
-        logDir: 'test-logs'
+        logDir: TEST_LOG_DIR
       });
       
       expect(manager.getQueuedTasks()).toHaveLength(2);
