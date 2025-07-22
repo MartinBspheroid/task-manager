@@ -1,6 +1,6 @@
-# Task Manager
+# Task Pilot
 
-A TypeScript task manager that spawns and manages child processes with logging, timeout capabilities, and optional queue management. Built for reliability and scalability with Bun runtime.
+A TypeScript task pilot that spawns and manages child processes with logging, timeout capabilities, and optional queue management. Built for reliability and scalability with Bun runtime.
 
 ## 📚 Documentation
 

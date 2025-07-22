@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a TypeScript task manager that spawns and manages child processes with logging and timeout capabilities. It uses Bun as the runtime and is packaged as an ESM module with full type definitions.
+This is a TypeScript task pilot that spawns and manages child processes with logging and timeout capabilities. It uses Bun as the runtime and is packaged as an ESM module with full type definitions.
 
 ### Module Structure
 
