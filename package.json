@@ -1,6 +1,6 @@
 {
   "name": "task-manager",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A TypeScript task manager for spawning and managing child processes with logging and timeout capabilities",
   "type": "module",
   "main": "./dist/index.js",
