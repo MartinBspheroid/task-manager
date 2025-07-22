@@ -2,7 +2,7 @@
 
 ## Overview
 
-The task manager is built with a layered architecture focusing on process lifecycle management, event-driven communication, optional queue management, and resource cleanup. The system supports both immediate execution (v1.x compatibility) and queued execution with advanced scheduling features.
+The task pilot is built with a layered architecture focusing on process lifecycle management, event-driven communication, optional queue management, and resource cleanup. The system supports both immediate execution (v1.x compatibility) and queued execution with advanced scheduling features.
 
 ## Core Components
 
