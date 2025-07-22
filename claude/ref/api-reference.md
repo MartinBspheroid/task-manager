@@ -306,6 +306,8 @@ interface QueueOptions {
   autoStart?: boolean;       // Auto-start queued tasks (default: true)
   interval?: number;         // Rate limit interval in ms
   intervalCap?: number;      // Max tasks per interval
+  queueClass?: QueueClass;  // Custom queue implementation
+  emitQueueEvents?: boolean; // Emit queue events on ProcessManager (default: false)
   timeout?: number;          // Default task timeout
   throwOnTimeout?: boolean;  // Throw on timeout (default: true)
 }
@@ -317,8 +319,22 @@ interface QueueOptions {
 interface TaskQueueOptions {
   immediate?: boolean;       // Skip queue, start immediately
   priority?: number;         // Task priority (higher = first)
+  aging?: PriorityAging;     // Priority aging configuration
   timeout?: number;          // Task-specific timeout
+  id?: string;               // Custom task identifier
+  metadata?: Record<string, unknown>; // Arbitrary metadata for filtering
   signal?: AbortSignal;      // For cancellation
+}
+```
+
+### PriorityAging
+
+```typescript
+interface PriorityAging {
+  enabled: boolean;          // Enable priority aging
+  increment: number;         // Priority increase per aging cycle
+  maxPriority?: number;      // Maximum priority limit
+  queuedAt?: Date;           // When task was queued (auto-set)
 }
 ```
 
@@ -332,6 +348,48 @@ const PRIORITY = {
   LOW: -100,
   BATCH: -1000
 };
+```
+
+### QueueStats
+
+```typescript
+interface QueueStats {
+  size: number;              // Total tasks in queue
+  pending: number;           // Tasks waiting to run
+  paused: boolean;           // Queue pause state
+  totalCompleted: number;    // All completed tasks
+  totalFailed: number;       // All failed tasks
+  totalTimeout: number;      // All timed out tasks
+  avgWaitTime: number;       // Average wait time in ms
+  avgProcessingTime: number; // Average processing time in ms
+  throughputPerHour: number; // Tasks completed per hour
+  utilizationPercent: number; // Queue utilization percentage
+  rateLimitHit: boolean;     // Whether rate limit is active
+  rateLimitRemaining: number; // Tasks remaining in current interval
+}
+```
+
+### QueueHealth
+
+```typescript
+interface QueueHealth {
+  status: 'healthy' | 'warning' | 'critical';
+  issues: string[];          // Array of health issues
+  memoryUsageMB: number;     // Memory usage in MB
+  processingRate: number;    // Tasks per second
+  avgQueueTime: number;      // Average time tasks spend queued
+  avgProcessingTime: number; // Average task processing time
+}
+```
+
+### QueueEventType
+
+```typescript
+type QueueEventType = 
+  | 'add' | 'next' | 'completed' | 'error' | 'idle' | 'empty'
+  | 'paused' | 'resumed' | 'timeout' | 'priority-change'
+  | 'capacity-full' | 'capacity-available' | 'stats-update'
+  | 'health-check' | 'rate-limit-hit' | 'rate-limit-reset';
 ```
 
 ## Error Handling

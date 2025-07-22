@@ -1,11 +1,27 @@
 {
   "name": "task-manager",
-  "module": "index.ts",
+  "version": "1.0.0",
+  "description": "A TypeScript task manager for spawning and managing child processes with logging and timeout capabilities",
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "format": "bunx oxlint --format='github'",
     "lint": "bunx oxlint",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+     "build": "bunx tsc"
   },
   "devDependencies": {
     "@types/bun": "latest",

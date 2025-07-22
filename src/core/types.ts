@@ -1,3 +1,5 @@
+import { QueueClass } from "./interfaces";
+
 // src/core/types.ts
 export type TaskStatus = 'running' | 'exited' | 'killed' | 'timeout' | 'start-failed' | 'queued';
 
@@ -291,15 +293,6 @@ export interface QueueManager extends QueueInterface {
   shutdown(options?: ShutdownOptions): Promise<void>;
 }
 
-/** Custom queue class interface for advanced users */
-export interface QueueClass {
-  new(options?: any): {
-    enqueue(task: any, options?: any): void;
-    dequeue(): any;
-    readonly size: number;
-    filter(options: any): any[];
-  };
-}
 
 /** Queue events that can be emitted by ProcessManager */
 export type QueueEventType = 

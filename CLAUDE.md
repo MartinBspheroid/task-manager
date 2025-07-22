@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a TypeScript task manager that spawns and manages child processes with logging and timeout capabilities. It uses Bun as the runtime.
+This is a TypeScript task manager that spawns and manages child processes with logging and timeout capabilities. It uses Bun as the runtime and is packaged as an ESM module with full type definitions.
+
+### Module Structure
+
+- **Entry Point**: `index.ts` - Main module exports for library consumers
+- **Package Configuration**: Configured for ESM with proper type definitions
+- **Build Output**: JavaScript and declaration files generated in `dist/` directory
 
 ## Key Commands
 
@@ -63,8 +69,9 @@ Tests use Bun's built-in test runner (`bun:test`). Test files follow the pattern
 
 - Strict mode enabled
 - Target: ESNext with latest features
-- Module resolution: Bundler mode
-- No emit (Bun executes TypeScript directly)
+- Module resolution: Node mode for proper ESM output
+- Declaration files generated in dist/ directory
+- ESM module format with type definitions
 
 ## Documentation
 
