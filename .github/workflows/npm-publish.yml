@@ -41,7 +41,7 @@ jobs:
       
 
       - name: copy readme to dist
-        run: cp README.md packages/plugin/README.md
+        run: cp README.md dist/README.md
       - name: Publish Package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
