@@ -1,5 +1,5 @@
 {
-  "name": "task-manager",
+  "name": "task-pilot",
   "version": "1.0.4",
   "description": "A TypeScript task manager for spawning and managing child processes with logging and timeout capabilities",
   "type": "module",
