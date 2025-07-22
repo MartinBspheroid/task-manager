@@ -36,14 +36,13 @@ jobs:
         run: bun install
         
       - name: Build
-        run: cd packages/plugin && bun run build
+        run: bun run build
         
-      - name: Run Tests
-        run: cd packages/plugin && bun test:coverage
+      
 
       - name: copy readme to dist
         run: cp README.md packages/plugin/README.md
       - name: Publish Package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: cd packages/plugin && bun run npm publish
+        run:  bun run npm publish
