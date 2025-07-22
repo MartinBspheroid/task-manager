@@ -61,9 +61,9 @@ test('waitForTaskCount waits for predicate to be true', async () => {
   const manager = createTestManager();
   
   // Start multiple tasks
-  const task1 = manager.start({ cmd: ['sleep', '5'], logDir: TEST_LOG_DIR });
-  const task2 = manager.start({ cmd: ['sleep', '5'], logDir: TEST_LOG_DIR });
-  const task3 = manager.start({ cmd: ['echo', 'quick'], logDir: TEST_LOG_DIR });
+  manager.start({ cmd: ['sleep', '5'], logDir: TEST_LOG_DIR });
+  manager.start({ cmd: ['sleep', '5'], logDir: TEST_LOG_DIR });
+  manager.start({ cmd: ['echo', 'quick'], logDir: TEST_LOG_DIR });
   
   // Wait for 2 running tasks (after quick one exits)
   await waitForTaskCount(

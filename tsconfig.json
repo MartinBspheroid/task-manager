@@ -29,7 +29,6 @@
     "declarationMap": true,
   },
   "exclude": [
-    "docs/queue-api-validation.ts",
     "src/tests/**/*.ts",
     "dist"
   ]

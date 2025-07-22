@@ -21,16 +21,18 @@
     "format": "bunx oxlint --format='github'",
     "lint": "bunx oxlint",
     "typecheck": "bunx tsc --noEmit",
-     "build": "bunx tsc"
+    "build": "bunx tsc"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "bumpp": "^10.2.0",
     "@types/chokidar": "^2.1.7"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    
     "chokidar": "^4.0.3",
     "glob": "^11.0.3",
     "p-queue": "^8.1.0"

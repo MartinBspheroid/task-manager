@@ -5,7 +5,7 @@
 import { expect, test, beforeEach, afterEach, describe } from 'bun:test';
 import { existsSync } from 'fs';
 import { ProcessManager } from '../core/ProcessManager';
-import { setupTestEnvironment, teardownTestEnvironment, waitForStatus, createTestManager, TEST_LOG_DIR } from './utils/test-helpers';
+import { setupTestEnvironment, teardownTestEnvironment, waitForStatus, TEST_LOG_DIR } from './utils/test-helpers';
 import type { TaskStatus } from '../core/types';
 
 beforeEach(setupTestEnvironment);

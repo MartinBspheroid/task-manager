@@ -1,6 +1,6 @@
 // src/core/ProcessManager.ts
 import { ProcessTask, type ProcessTaskOpts } from './ProcessTask';
-import type { TaskInfo, HookCallbacks, ProcessManagerOptions, QueueStats, ExitResult, QueueHealth, ShutdownOptions, TaskPredicate, TaskQueueOptions } from './types';
+import type { TaskInfo, HookCallbacks, ProcessManagerOptions, QueueStats, ExitResult, QueueHealth, ShutdownOptions, TaskQueueOptions } from './types';
 import { HookManager } from './HookManager';
 import { ProcessQueue } from './ProcessQueue';
 import { TaskHandle } from './TaskHandle';
